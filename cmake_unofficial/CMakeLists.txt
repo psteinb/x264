@@ -46,6 +46,7 @@ if(NOT DEFINED X264_CHROMA_FORMAT)
 endif()
 
 include(CheckCCompilerFlag)
+list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR})
 include(list_utils)
 check_c_compiler_flag(-Wno-maybe-uninitialized HAS_NOMAYBE_UNINITIALISED)
 check_c_compiler_flag(-Wshadow HAS_SHADOW)
