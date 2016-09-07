@@ -1,7 +1,7 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 3.0)
-PROJECT(x264 C ASM-NASM)
+PROJECT(x264 C)
 
-if(NOT "${CMAKE_SYSTEM_PROCESSOR}" MATCHES ".86" OR NOT "${CMAKE_SYSTEM_PROCESSOR}" MATCHES "AMD64")
+if(NOT ("${CMAKE_SYSTEM_PROCESSOR}" MATCHES ".86_64" OR "${CMAKE_SYSTEM_PROCESSOR}" MATCHES ".86$" OR "${CMAKE_SYSTEM_PROCESSOR}" MATCHES "AMD64"))
   message(FATAL_ERROR "${CMAKE_SYSTEM_PROCESSOR} currently not supported")
 endif()
 
@@ -46,6 +46,7 @@ if(NOT DEFINED X264_CHROMA_FORMAT)
 endif()
 
 include(CheckCCompilerFlag)
+include(list_utils)
 check_c_compiler_flag(-Wno-maybe-uninitialized HAS_NOMAYBE_UNINITIALISED)
 check_c_compiler_flag(-Wshadow HAS_SHADOW)
 check_c_compiler_flag(-Wall HAS_ALL)
@@ -112,7 +113,7 @@ endif()
 
 get_filename_component(X264_SOURCE_ROOT ${PROJECT_SOURCE_DIR}/.. ABSOLUTE)
 include_directories(${X264_SOURCE_ROOT})
-add_subdirectory(${X264_SOURCE_ROOT})
+#add_subdirectory(${X264_SOURCE_ROOT})
 
 ################################ COLLECT C SOURCES ################################
 
@@ -157,6 +158,9 @@ endif()
 ################################ PRODUCE C OBJECT FILES ################################
 list(APPEND X264_SRCS common/x86/mc-c.c common/x86/predict-c.c)
 
+PREPEND_ITEM("${X264_SRCS}" "${X264_SOURCE_ROOT}/" X264_SRCS)
+PREPEND_ITEM("${X264_SRCCLI}" "${X264_SOURCE_ROOT}/" X264_SRCCLI)
+
 add_library(x264-objects OBJECTS ${X264_SRCS})
 add_library(x264-app OBJECTS ${X264_SRCCLI})
 
@@ -190,6 +194,8 @@ else()
   list(APPEND ASMSRC ${X264_X86SRC} common/x86/pixel-32.asm)
 endif()
 
+PREPEND_ITEM("${ASMSRC}" "${X264_SOURCE_ROOT}/" ASMSRC)
+
 if(NOT YASM_ROOT)
   if(DEFINED ENV{YASM_ROOT})
     set(YASM_ROOT ENV{YASM_ROOT})
@@ -201,7 +207,8 @@ find_program(YASM_APP NAMES yasm yasm${CMAKE_EXECUTABLE_SUFFIX} NAMES_PER_DIR HI
 if(NOT ${YASM_APP})
   message(FATAL_ERROR "unable to locate yasm, exiting (hint cmake for the path containing yasm by defining YASM_ROOT)")
 endif()
-set(CMAKE_ASM_COMPILER ${YASM_APP})
+set(CMAKE_ASM-NASM_COMPILER ${YASM_APP})
+enable_language(ASM-NASM)
 ################################ COLLECT ASM FLAGS ################################
 set(ASM_FLAG_LIST -I${X264_SOURCE_ROOT} -I${X264_SOURCE_ROOT}/common/x86/ -Worphan-labels -DSTACK_ALIGNMENT=32)
 
