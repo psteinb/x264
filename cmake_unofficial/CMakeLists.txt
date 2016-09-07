@@ -269,8 +269,10 @@ if(${WITH_CLI})
   
   add_executable(x264 ${X264_SRCCLI} $<TARGET_OBJECTS:x264-appobjects>)
   if(TARGET x264-static)
-    
     target_link_libraries(x264 x264-static)
+    if(UNIX)
+      target_link_libraries(x264 dl m)
+    endif()
   else()
     if(TARGET x264-shared)
       target_link_libraries(x264 x264-shared)
