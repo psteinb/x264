@@ -105,12 +105,12 @@ endif(UNIX)
 string(REPLACE ";" " " EXTRA_CFLAGS "${EXTRA_CFLAGS_LIST}")
 set(CMAKE_C_FLAGS ${EXTRA_CFLAGS})
 if(${CMAKE_BUILD_TYPE} MATCHES "Rel.*")
-  set(CMAKE_C_FLAGS_RELEASE "${EXTRA_CFLAGS}")
-  set(CMAKE_C_FLAGS_RELWDBG "${EXTRA_CFLAGS}")
+  set(CMAKE_C_FLAGS_RELEASE "${EXTRA_CFLAGS} -O3")
+  set(CMAKE_C_FLAGS_RELWDBG "${EXTRA_CFLAGS} -O3")
 endif()
 
 if(${CMAKE_BUILD_TYPE} MATCHES "Debug")
-  set(CMAKE_C_FLAGS_DEBUG "${EXTRA_CFLAGS}")
+  set(CMAKE_C_FLAGS_DEBUG "${EXTRA_CFLAGS} -g")
 endif()
 
 get_filename_component(X264_SOURCE_ROOT ${PROJECT_SOURCE_DIR}/.. ABSOLUTE)
@@ -264,13 +264,21 @@ if(${WITH_STATIC})
   set_target_properties(x264-static PROPERTIES OUTPUT_NAME x264)
 endif()
 
+
 if(${WITH_CLI})
+  
   add_executable(x264 ${X264_SRCCLI} $<TARGET_OBJECTS:x264-appobjects>)
   if(TARGET x264-static)
+    
     target_link_libraries(x264 x264-static)
   else()
     if(TARGET x264-shared)
       target_link_libraries(x264 x264-shared)
     endif()
   endif()
+endif()
+
+if(WITH_THREADS)
+  find_package(Threads REQUIRED)
+  target_link_libraries(x264 Threads::Threads)
 endif()
