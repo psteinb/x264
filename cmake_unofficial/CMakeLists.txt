@@ -1,5 +1,9 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 3.0)
-PROJECT(x264 C ASM)
+PROJECT(x264 C ASM-NASM)
+
+if(NOT "${CMAKE_SYSTEM_PROCESSOR}" MATCHES ".86" OR NOT "${CMAKE_SYSTEM_PROCESSOR}" MATCHES "AMD64")
+  message(FATAL_ERROR "${CMAKE_SYSTEM_PROCESSOR} currently not supported")
+endif()
 
 ################################ BUILD OPTIONS ################################
 option(WITH_SHARED "build a shared library" ON)
@@ -156,12 +160,10 @@ list(APPEND X264_SRCS common/x86/mc-c.c common/x86/predict-c.c)
 add_library(x264-objects OBJECTS ${X264_SRCS})
 add_library(x264-app OBJECTS ${X264_SRCCLI})
 
-####################################################
-# TODO: cannot distinguish non-x86 architectures yet
-#       assuming x86* for now
 if( CMAKE_SIZEOF_VOID_P MATCHES 8 )
     # void ptr = 8 byte --> x86_64
-    set(CPU_ARCH "x86_64") 
+    set(CPU_ARCH "x86_64")
+    
 else()
     # void ptr != 8 byte --> x86
     set(CPU_ARCH "x86")
@@ -195,41 +197,46 @@ if(NOT YASM_ROOT)
 endif()
 
 ################################ COLLECT ASM APP ################################
-find_program(YASM_APP NAMES yasm NAMES_PER_DIR HINTS ${YASM_ROOT} PATHS ${YASM_ROOT} )
+find_program(YASM_APP NAMES yasm yasm${CMAKE_EXECUTABLE_SUFFIX} NAMES_PER_DIR HINTS ${YASM_ROOT} PATHS ${YASM_ROOT} PATH_SUFFIXES bin)
 if(NOT ${YASM_APP})
-  message(FATAL_ERROR "unable to locate yasm, exiting (if not done so, please provide YASM_ROOT for a hint)")
+  message(FATAL_ERROR "unable to locate yasm, exiting (hint cmake for the path containing yasm by defining YASM_ROOT)")
 endif()
-
+set(CMAKE_ASM_COMPILER ${YASM_APP})
 ################################ COLLECT ASM FLAGS ################################
-set(ASM_FLAGS -I${X264_SOURCE_ROOT} -I${X264_SOURCE_ROOT}/common/x86/ -Worphan-labels -DSTACK_ALIGNMENT=32)
+set(ASM_FLAG_LIST -I${X264_SOURCE_ROOT} -I${X264_SOURCE_ROOT}/common/x86/ -Worphan-labels -DSTACK_ALIGNMENT=32)
 
 if(${CPU_ARCH} STREQUAL "x86_64")
-  list(APPEND ASM_FLAGS -DARCH_X86_64=1)
+  list(APPEND ASM_FLAG_LIST -DARCH_X86_64=1)
 endif()
  
-
-if(UNIX)
-  if(${CPU_ARCH} STREQUAL "x86_64")
-    list(APPEND ASM_FLAGS -f elf64)
-  else()
-    list(APPEND ASM_FLAGS -f elf32)
-  endif()
-endif()
-
-if(WIN32)
-  if(${CPU_ARCH} STREQUAL "x86_64")
-    list(APPEND ASM_FLAGS -f win64)
-  else()
-    list(APPEND ASM_FLAGS -f win32)
-  endif()
-endif()
-
 if(WITH_PIC)
-  list(APPEND ASM_FLAGS -DPIC)
+  list(APPEND ASM_FLAG_LIST -DPIC)
 endif()
 
 if(${X264_BIT_DEPTH} EQUALS 8)
-  list(APPEND ASM_FLAGS -DHIGH_BIT_DEPTH=0)
+  list(APPEND ASM_FLAG_LIST -DHIGH_BIT_DEPTH=0)
 endif()
 
-list(APPEND ASM_FLAGS -DBIT_DEPTH=${X264_BIT_DEPTH})
+list(APPEND ASM_FLAG_LIST -DBIT_DEPTH=${X264_BIT_DEPTH})
+
+string(REPLACE ";" " " CMAKE_ASM_FLAGS ${ASM_FLAG_LIST})
+
+add_library(x264-asm OBJECTS ${ASMSRC})
+
+
+if(${WITH_SHARED})
+  add_library(x264-shared SHARED)
+  target_link_library(x264-objects x264-asm)
+  set_target_properties(x264-shared PROPERTIES OUTPUT_NAME ${CMAKE_SHARED_LIBRARY_PREFIX}x264${CMAKE_SHARED_LIBRARY_SUFFIX})
+endif()
+  
+if(${WITH_STATIC})
+  add_library(x264-static STATIC)
+  target_link_library(x264-objects x264-asm)
+  set_target_properties(x264-static PROPERTIES OUTPUT_NAME ${CMAKE_STATIC_LIBRARY_PREFIX}x264${CMAKE_STATIC_LIBRARY_SUFFIX})
+endif()
+
+if(${WITH_CLI})
+  add_executable(x264 ${X264_SRCCLI})
+  target_link_library(x264-objects x264-asm)
+endif()
