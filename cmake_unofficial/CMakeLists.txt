@@ -44,6 +44,7 @@ endif()
 #output chroma format (420, 422, 444, all) [all]
 if(NOT DEFINED X264_CHROMA_FORMAT)
   set(X264_CHROMA_FORMAT all)
+  set(X264_CHROMA_FLAG 0)
 endif()
 
 include(CheckCSourceCompiles)
