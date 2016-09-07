@@ -46,7 +46,7 @@ if(NOT DEFINED X264_CHROMA_FORMAT)
 endif()
 
 include(CheckCCompilerFlag)
-list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR})
+list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}")
 include(list_utils)
 check_c_compiler_flag(-Wno-maybe-uninitialized HAS_NOMAYBE_UNINITIALISED)
 check_c_compiler_flag(-Wshadow HAS_SHADOW)
@@ -162,8 +162,8 @@ list(APPEND X264_SRCS common/x86/mc-c.c common/x86/predict-c.c)
 PREPEND_ITEM("${X264_SRCS}" "${X264_SOURCE_ROOT}/" X264_SRCS)
 PREPEND_ITEM("${X264_SRCCLI}" "${X264_SOURCE_ROOT}/" X264_SRCCLI)
 
-add_library(x264-objects OBJECTS ${X264_SRCS})
-add_library(x264-app OBJECTS ${X264_SRCCLI})
+add_library(x264-objects OBJECT ${X264_SRCS})
+add_library(x264-app OBJECT ${X264_SRCCLI})
 
 if( CMAKE_SIZEOF_VOID_P MATCHES 8 )
     # void ptr = 8 byte --> x86_64
@@ -204,12 +204,13 @@ if(NOT YASM_ROOT)
 endif()
 
 ################################ COLLECT ASM APP ################################
-find_program(YASM_APP NAMES yasm yasm${CMAKE_EXECUTABLE_SUFFIX} NAMES_PER_DIR HINTS ${YASM_ROOT} PATHS ${YASM_ROOT} PATH_SUFFIXES bin)
-if(NOT ${YASM_APP})
-  message(FATAL_ERROR "unable to locate yasm, exiting (hint cmake for the path containing yasm by defining YASM_ROOT)")
+find_program(YASM_APP NAMES yasm yasm${CMAKE_EXECUTABLE_SUFFIX} NAMES_PER_DIR HINTS ${YASM_ROOT} PATHS ${YASM_ROOT} PATH_SUFFIXES bin NO_DEFAULT_PATH)
+find_program(YASM_APP NAMES yasm yasm${CMAKE_EXECUTABLE_SUFFIX})
+if(NOT EXISTS ${YASM_APP})
+  message(FATAL_ERROR "unable to locate yasm or yasm${CMAKE_EXECUTABLE_SUFFIX} (hint cmake for the path containing yasm by defining YASM_ROOT)")
 endif()
-set(CMAKE_ASM-NASM_COMPILER ${YASM_APP})
-enable_language(ASM-NASM)
+set(CMAKE_ASM_NASM_COMPILER ${YASM_APP})
+enable_language(ASM_NASM)
 ################################ COLLECT ASM FLAGS ################################
 set(ASM_FLAG_LIST -I${X264_SOURCE_ROOT} -I${X264_SOURCE_ROOT}/common/x86/ -Worphan-labels -DSTACK_ALIGNMENT=32)
 
@@ -221,7 +222,7 @@ if(WITH_PIC)
   list(APPEND ASM_FLAG_LIST -DPIC)
 endif()
 
-if(${X264_BIT_DEPTH} EQUALS 8)
+if(${X264_BIT_DEPTH} EQUAL 8)
   list(APPEND ASM_FLAG_LIST -DHIGH_BIT_DEPTH=0)
 endif()
 
@@ -229,22 +230,28 @@ list(APPEND ASM_FLAG_LIST -DBIT_DEPTH=${X264_BIT_DEPTH})
 
 string(REPLACE ";" " " CMAKE_ASM_FLAGS ${ASM_FLAG_LIST})
 
-add_library(x264-asm OBJECTS ${ASMSRC})
+add_library(x264-asm OBJECT ${ASMSRC})
 
 
 if(${WITH_SHARED})
-  add_library(x264-shared SHARED)
-  target_link_library(x264-objects x264-asm)
+  add_library(x264-shared SHARED $<TARGET_OBJECTS:x264-objects> $<TARGET_OBJECTS:x264-asm>)
+#  target_link_libraries(x264-shared )
   set_target_properties(x264-shared PROPERTIES OUTPUT_NAME ${CMAKE_SHARED_LIBRARY_PREFIX}x264${CMAKE_SHARED_LIBRARY_SUFFIX})
 endif()
   
 if(${WITH_STATIC})
-  add_library(x264-static STATIC)
-  target_link_library(x264-objects x264-asm)
+  add_library(x264-static STATIC $<TARGET_OBJECTS:x264-objects> $<TARGET_OBJECTS:x264-asm>)
+  #target_link_libraries(x264-objects x264-asm)
   set_target_properties(x264-static PROPERTIES OUTPUT_NAME ${CMAKE_STATIC_LIBRARY_PREFIX}x264${CMAKE_STATIC_LIBRARY_SUFFIX})
 endif()
 
 if(${WITH_CLI})
-  add_executable(x264 ${X264_SRCCLI})
-  target_link_library(x264-objects x264-asm)
+  add_executable(x264 ${X264_SRCCLI} $<TARGET_OBJECTS:x264-app>)
+  if(TARGET x264-static)
+    target_link_libraries(x264 x264-static)
+  else()
+    if(TARGET x264-shared)
+      target_link_libraries(x264 x264-shared)
+    endif()
+  endif()
 endif()
