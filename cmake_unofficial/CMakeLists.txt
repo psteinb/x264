@@ -22,17 +22,18 @@ endif()
 
 option(WITH_INTERLACED "build with interlaced encoding support" ON)
 option(WITH_ASM "platform-specific assembly optimizations" ON)
-option(WITH_LTO "link-time optimization (only gcc/UNIX supported)" OFF)
-option(WITH_PROFILING "enabled profiling (only gcc/UNIX supported)" OFF)
 option(WITH_STRIP "strip binaires (only gcc/UNIX supported)" ON)
 option(WITH_PIC    "build a binaries with position independent code" ON)
-option(WITH_AVS "build with avisynth support (currently unsupported in cmake)" ON)
+
+option(WITH_AVS "build with avisynth support (currently unsupported in cmake)" OFF)
 option(WITH_SWSCALE "build with libswscale support (currently unsupported in cmake)" ON)
 option(WITH_LAVF "build with lavformat support (currently unsupported in cmake)" OFF)
 option(WITH_FFMS "build with ffmpeg source support (currently unsupported in cmake)" OFF)
 option(WITH_GPAC "build with gpac support (currently unsupported in cmake)" OFF)
 option(WITH_LSMASH "build with lsmash support (currently unsupported in cmake)" OFF)
 option(WITH_SYS_X264 "build with system libx264 support (currently unsupported in cmake)" OFF)
+option(WITH_LTO "link-time optimization (only gcc/UNIX supported) (currently unsupported in cmake)" OFF)
+option(WITH_PROFILING "enabled profiling (only gcc/UNIX supported) (currently unsupported in cmake)" OFF)
 
 ################################ GLOBAL DEFINES ################################
 #set output bit depth (8-10) [8]
@@ -45,7 +46,12 @@ if(NOT DEFINED X264_CHROMA_FORMAT)
   set(X264_CHROMA_FORMAT all)
 endif()
 
+include(CheckCSourceCompiles)
+include(CheckCSourceRuns)
+include(CheckIncludeFiles)
 include(CheckCCompilerFlag)
+include(CheckFunctionExists)
+include(CheckSymbolExists)
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}")
 include(list_utils)
 check_c_compiler_flag(-Wno-maybe-uninitialized HAS_NOMAYBE_UNINITIALISED)
@@ -55,10 +61,107 @@ check_c_compiler_flag(-ffast-math HAS_FAST_MATH)
 check_c_compiler_flag(-O3 HAS_O3)
 check_c_compiler_flag(-g HAS_G)
 check_c_compiler_flag(-m64 HAS_M64)
-check_c_compiler_flag(-mpreferred-stack-boundary=5 HAS_PREF_STACK_BOUNDARY)
+check_c_compiler_flag(-mpreferred-stack-boundary=5 HAS_PREF_STACK_BOUNDARY5)
+check_c_compiler_flag(-mpreferred-stack-boundary=4 HAS_PREF_STACK_BOUNDARY4)
 check_c_compiler_flag(-fomit-frame-pointer HAS_OMIT_FRAMEPOINTER)
 check_c_compiler_flag(-fno-tree-vectorize HAS_NO_TREE_VECTORIZE)
 check_c_compiler_flag(-std=gnu99 HAS_STD_GNU99)
+
+check_function_exists(getopt_long HAS_GETOPT_LONG)
+
+check_include_file(math.h HAS_MATH_H)
+check_include_file(malloc.h HAS_MALLOC_H)
+check_include_file(sched.h HAS_SCHED_H)
+check_include_file(sys/mman.h HAS_MMAN_H)
+check_include_file(unistd.h HAS_UNISTD_H)
+
+if(HAS_MATH_H)
+check_symbol_exists(log2f math.h HAS_LOG2F)
+else()
+  set(HAS_LOG2F 0)
+endif()
+
+set(HAS_MMAP 0)
+set(HAS_THP 0)
+if(HAS_MMAN_H)
+    if(HAS_UNISTD_H)
+      check_symbol_exists(MAP_PRIVATE sys/mman.h unistd.h HAS_MMAP)
+    endif()
+
+    check_symbol_exists(MADV_HUGEPAGE sys/mman.h HAS_THP)
+endif()
+
+if(HAS_SCHED_H)
+  check_symbol_exists(CPU_COUND sched.h HAS_CPU_COUNT)
+else()
+  set(HAS_CPU_COUNT 0)
+endif()
+
+check_function_exists(__asm__ HAS_X86_INLINE_ASM)
+if(HAS_X86_INLINE_ASM)
+  check_C_source_compiles("void main(){__asm__(\"pabsw %xmm0, %xmm0\");}" HAS_MMX)
+endif()
+
+check_C_source_compiles("#include <stdint.h>\nvoid main(){uint32_t test_vec __attribute__ ((vector_size (16))) = {0,1,2,3};}" HAS_VECTOREXT)
+check_symbol_exists(fseeko stdio.h HAS_FSEEKO)
+check_symbol_exists(fseeko64 stdio.h HAS_FSEEKO64)
+check_symbol_exists(_fseeki64 stdio.h HAS_FSEEKI64)
+
+if(HAS_FSEEKO)
+  set(X264_FSEEK fseeko)
+  set(X264_FTELL ftello)
+elseif(HAS_FSEEKO64)
+  set(X264_FSEEK fseeko)
+  set(X264_FTELL ftello)
+elseif(HAS_FSEEKI64)
+  set(X264_FSEEK fseeko)
+  set(X264_FTELL ftello)
+endif()
+
+if(WITH_GPL)
+  set(X264_USE_GPL 1)
+else()
+  set(X264_USE_GPL 0)
+endif()
+
+if(WITH_INTERLACED)
+  set(X264_USE_INTERLACED 1)
+else()
+  set(X264_USE_INTERLACED 0)
+endif()
+
+
+set(X264_STACK_ALIGNMENT 16)
+if(HAS_PREF_STACK_BOUNDARY5)
+  set(CMAKE_REQUIRED_FLAGS -mpreferred-stack-boundary=5)
+  check_C_source_runs("void main(){}" RUNSWITH_PREF_STACK_BOUNDARY5)
+  if(RUNSWITH_PREF_STACK_BOUNDARY5)
+    set(X264_STACK_ALIGNMENT 32)
+  endif()
+endif()
+
+if(HAS_PREF_STACK_BOUNDARY4 AND NOT RUNSWITH_PREF_STACK_BOUNDARY5)
+  set(CMAKE_REQUIRED_FLAGS -mpreferred-stack-boundary=4)
+  check_C_source_runs("void main(){}" RUNSWITH_PREF_STACK_BOUNDARY4)
+  if(RUNSWITH_PREF_STACK_BOUNDARY4)
+    set(X264_STACK_ALIGNMENT 16)
+  endif()
+endif()
+
+
+if( CMAKE_SIZEOF_VOID_P MATCHES 8 )
+    set(CPU_ARCH "x86_64")
+else()
+    set(CPU_ARCH "x86")
+endif()
+
+if(("${CMAKE_SYSTEM_PROCESSOR}" MATCHES ".86_64" OR "${CMAKE_SYSTEM_PROCESSOR}" MATCHES "AMD64") AND ("${CPU_ARCH}" MATCHES ".*64$"))
+  set(ARCH_86_64 1)
+endif()
+
+if(LINUX)
+  set(SYS_LINUX 1)
+endif()
 
 set(EXTRA_CFLAGS_LIST "")
 if(UNIX)
@@ -93,7 +196,7 @@ if(UNIX)
     endif()
   endif()
 
-  if(HAS_PREF_STACK_BOUNDARY)
+  if(HAS_PREF_STACK_BOUNDARY5)
     list(APPEND EXTRA_CFLAGS_LIST -mpreferred-stack-boundary=5)
   endif()
 
@@ -115,7 +218,37 @@ endif()
 
 get_filename_component(X264_SOURCE_ROOT ${PROJECT_SOURCE_DIR}/.. ABSOLUTE)
 include_directories(${X264_SOURCE_ROOT})
-#add_subdirectory(${X264_SOURCE_ROOT})
+
+if(CMAKE_C_COMPILER_ID MATCHES "(GNU|GCC|.*Clang)")
+  SET(CMAKE_C_ARCHIVE_CREATE "<CMAKE_AR> rc <TARGET> <LINK_FLAGS> <OBJECTS>") 
+  SET(CMAKE_C_ARCHIVE_APPEND "<CMAKE_AR> r  <TARGET> <LINK_FLAGS> <OBJECTS>") 
+endif()
+
+set(HAS_GETOPT_LONG TRUE)
+set(HAVE_POSIXTHREAD 0)
+set(HAVE_THREAD 0)
+set(HAVE_WIN32THREAD 0)
+      
+if(WITH_THREADS)
+  find_package(Threads REQUIRED)
+  if(THREADS_FOUND)
+    set(HAVE_THREAD 1)
+    if(UNIX)
+      set(HAVE_POSIXTHREAD 1)
+      set(HAVE_THREAD 1)
+      set(HAVE_WIN32THREAD 0)
+    endif()
+    if(WIN32)
+      set(HAVE_POSIXTHREAD 0)
+      set(HAVE_THREAD 1)
+      set(HAVE_WIN32THREAD 1)
+    endif()
+  endif()
+endif()
+
+configure_file(${PROJECT_SOURCE_DIR}/config.h.in ${PROJECT_BINARY_DIR}/config.h)
+configure_file(${PROJECT_SOURCE_DIR}/x264_config.h.in ${PROJECT_BINARY_DIR}/x264_config.h)
+include_directories(${PROJECT_BINARY_DIR})
 
 ################################ COLLECT C SOURCES ################################
 
@@ -123,6 +256,9 @@ set(X264_SRCS "common/mc.c;common/predict.c;common/pixel.c;common/macroblock.c;c
 
 set(X264_SRCCLI "x264.c;input/input.c;input/timecode.c;input/raw.c;input/y4m.c;output/raw.c;output/matroska.c;output/matroska_ebml.c;output/flv.c;output/flv_bytestream.c;filters/filters.c;filters/video/video.c;filters/video/source.c;filters/video/internal.c;filters/video/resize.c;filters/video/cache.c;filters/video/fix_vfr_pts.c;filters/video/select_every.c;filters/video/crop.c;filters/video/depth.c")
 
+if(HAS_GETOPT_LONG)
+  list(APPEND X264_SRCCLI extras/getopt.c)
+endif()
 
 if(WITH_AVS)
   list(APPEND X264_SRCCLI input/avs.c)
@@ -166,13 +302,6 @@ PREPEND_ITEM("${X264_SRCCLI}" "${X264_SOURCE_ROOT}/" X264_SRCCLI)
 add_library(x264-objects OBJECT ${X264_SRCS})
 add_library(x264-appobjects OBJECT ${X264_SRCCLI})
 
-if( CMAKE_SIZEOF_VOID_P MATCHES 8 )
-    # void ptr = 8 byte --> x86_64
-    set(CPU_ARCH "x86_64")
-else()
-    # void ptr != 8 byte --> x86
-    set(CPU_ARCH "x86")
-endif()
 
 ################################ COLLECT ASM SOURCES ################################
 
@@ -211,7 +340,7 @@ if(NOT EXISTS ${YASM_APP})
 endif()
 #set(CMAKE_ASM_NASM_COMPILER ${YASM_APP})
 ################################ COLLECT ASM FLAGS ################################
-set(ASM_FLAG_LIST -I${X264_SOURCE_ROOT} -I${X264_SOURCE_ROOT}/common/x86/ -Worphan-labels -DSTACK_ALIGNMENT=32)
+set(ASM_FLAG_LIST -I${X264_SOURCE_ROOT} -I${X264_SOURCE_ROOT}/common/x86/ -Worphan-labels -DSTACK_ALIGNMENT=${X264_STACK_ALIGNMENT})
 
 if(${CPU_ARCH} STREQUAL "x86_64")
   list(APPEND ASM_FLAG_LIST -DARCH_X86_64=1)
@@ -221,6 +350,9 @@ if(WITH_PIC)
   list(APPEND ASM_FLAG_LIST -DPIC)
   set(CMAKE_POSITION_INDEPENDENT_CODE TRUE)
   if(CMAKE_C_COMPILER_ID MATCHES "(GNU|GCC|.*Clang)")
+    
+  SET(CMAKE_C_ARCHIVE_CREATE "<CMAKE_AR> rc <TARGET> <LINK_FLAGS> <OBJECTS>") 
+  SET(CMAKE_C_ARCHIVE_APPEND "<CMAKE_AR> r  <TARGET> <LINK_FLAGS> <OBJECTS>") 
     add_definitions(-fPIC)
   endif()
 else()
@@ -259,6 +391,12 @@ if(${WITH_SHARED})
 endif()
   
 if(${WITH_STATIC})
+  find_program(GCC_AR_APP gcc-ar)
+  if(EXISTS ${GCC_AR_APP})
+    set(CMAKE_AR "gcc-ar")
+  endif()
+
+  
   add_library(x264-static STATIC $<TARGET_OBJECTS:x264-objects> $<TARGET_OBJECTS:x264-asm>)
   #target_link_libraries(x264-objects x264-asm)
   set_target_properties(x264-static PROPERTIES OUTPUT_NAME x264)
@@ -267,20 +405,23 @@ endif()
 
 if(${WITH_CLI})
   
-  add_executable(x264 ${X264_SRCCLI} $<TARGET_OBJECTS:x264-appobjects>)
+  add_executable(x264 $<TARGET_OBJECTS:x264-appobjects>)
   if(TARGET x264-static)
     target_link_libraries(x264 x264-static)
-    if(UNIX)
-      target_link_libraries(x264 dl m)
-    endif()
   else()
     if(TARGET x264-shared)
       target_link_libraries(x264 x264-shared)
+    else()
+      message(FATAL_ERROR "building the CLI app only is not supported yet")
     endif()
+  endif()
+
+  if(UNIX)
+    target_link_libraries(x264 dl m)
   endif()
 endif()
 
-if(WITH_THREADS)
-  find_package(Threads REQUIRED)
-  target_link_libraries(x264 Threads::Threads)
+  if(WITH_CLI)
+    target_link_libraries(x264 Threads::Threads)
+  endif()
 endif()
