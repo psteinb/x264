@@ -1,7 +1,7 @@
 set(ASM_DIALECT "_YASM")
 set(CMAKE_ASM${ASM_DIALECT}_SOURCE_FILE_EXTENSIONS asm)
 
-if(X64)
+if( CMAKE_SIZEOF_VOID_P MATCHES 8 )
     list(APPEND ASM_FLAGS -DARCH_X86_64=1)
     if(ENABLE_PIC)
         list(APPEND ASM_FLAGS -DPIC)
@@ -24,11 +24,11 @@ else()
     endif()
 endif()
 
-if(GCC)
-    list(APPEND ASM_FLAGS -DHAVE_ALIGNED_STACK=1)
-else()
-    list(APPEND ASM_FLAGS -DHAVE_ALIGNED_STACK=0)
-endif()
+# if(GCC)
+#     list(APPEND ASM_FLAGS -DHAVE_ALIGNED_STACK=1)
+# else()
+#     list(APPEND ASM_FLAGS -DHAVE_ALIGNED_STACK=0)
+# endif()
 
 list(APPEND ASM_FLAGS "${CMAKE_ASM_YASM_FLAGS}")
 
