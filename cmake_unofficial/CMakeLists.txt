@@ -83,10 +83,14 @@ check_c_compiler_flag(-fPIC HAS_PIC)
 check_function_exists(getopt_long HAS_GETOPT_LONG)
 
 check_include_file(math.h HAS_MATH_H)
+check_include_file(dlfcn.h HAS_DLFCN_H)
 check_include_file(malloc.h HAS_MALLOC_H)
 check_include_file(sched.h HAS_SCHED_H)
 check_include_file(sys/mman.h HAS_MMAN_H)
 check_include_file(unistd.h HAS_UNISTD_H)
+check_include_file(string.h HAS_STRING_H)
+check_include_file(strings.h HAS_STRINGS_H)
+check_include_file(getopt.h HAS_GETOPT_H)
 
 #set(HAS_LOG2F 0)
 if(HAS_MATH_H)
@@ -124,9 +128,16 @@ endif()
 check_C_source_compiles("void main(){__asm__(\"pabsw %xmm0, %xmm0\");}" HAS_X86_INLINE_ASM)
 if(HAS_X86_INLINE_ASM)
   check_C_source_compiles("void main(){__asm__(\"pabsw %xmm0, %xmm0\");}" HAS_MMX)
+else()
+  set(HAS_X86_INLINE_ASM 0)
+  set(HAS_MMX 0)
 endif()
 
 check_C_source_compiles("#include <stdint.h>\nvoid main(){uint32_t test_vec __attribute__ ((vector_size (16))) = {0,1,2,3};}" HAS_VECTOREXT)
+if(NOT HAS_VECTOREXT)
+set(HAS_VECTOREXT 0)
+endif()
+
 check_symbol_exists(fseeko stdio.h HAS_FSEEKO)
 check_symbol_exists(fseeko64 stdio.h HAS_FSEEKO64)
 check_symbol_exists(_fseeki64 stdio.h HAS_FSEEKI64)
@@ -164,7 +175,7 @@ if(HAS_PREF_STACK_BOUNDARY5)
   endif()
 endif()
 
-if(${X264_STACK_ALIGNMENT} LESS 16 AND ${HAS_PREF_STACK_BOUNDARY4})
+if(${X264_STACK_ALIGNMENT} LESS 16 AND HAS_PREF_STACK_BOUNDARY4)
   set(CMAKE_REQUIRED_FLAGS -mpreferred-stack-boundary=4)
   check_C_source_compiles("void main(){}" BUILDSWITH_PREF_STACK_BOUNDARY4)
   if(BUILDSWITH_PREF_STACK_BOUNDARY4)
@@ -193,6 +204,12 @@ if(UNIX)
   endif()
 else()
   set(SYS_LINUX 0)
+endif()
+
+if(WIN32)
+set(SYS_WINDOWS 1)
+else()
+set(SYS_WINDOWS 0)
 endif()
 
 set(EXTRA_CFLAGS_LIST "")
@@ -257,6 +274,9 @@ endif()
 
 get_filename_component(X264_SOURCE_ROOT ${PROJECT_SOURCE_DIR}/.. ABSOLUTE)
 include_directories(${X264_SOURCE_ROOT})
+if(NOT HAS_GETOPT_H)
+include_directories(${X264_SOURCE_ROOT}/extras)
+endif()
 
 if(CMAKE_C_COMPILER_ID MATCHES "(GNU|GCC|.*Clang)")
   SET(CMAKE_C_ARCHIVE_CREATE "<CMAKE_AR> rc <TARGET> <LINK_FLAGS> <OBJECTS>") 
@@ -289,7 +309,9 @@ endif()
 configure_file(${PROJECT_SOURCE_DIR}/config.h.in ${PROJECT_BINARY_DIR}/config.h)
 configure_file(${PROJECT_SOURCE_DIR}/x264_config.h.in ${PROJECT_BINARY_DIR}/x264_config.h)
 include_directories(${PROJECT_BINARY_DIR})
-
+if(EXISTS ${PROJECT_BINARY_DIR}/config.h)
+add_definitions(-DHAVE_CONFIG_H=1)
+endif()
 ################################ COLLECT C SOURCES ################################
 
 set(X264_SRCS "common/mc.c;common/predict.c;common/pixel.c;common/macroblock.c;common/frame.c;common/dct.c;common/cpu.c;common/cabac.c;common/common.c;common/osdep.c;common/rectangle.c;common/set.c;common/quant.c;common/deblock.c;common/vlc.c;common/mvpred.c;common/bitstream.c;encoder/analyse.c;encoder/me.c;encoder/ratecontrol.c;encoder/set.c;encoder/macroblock.c;encoder/cabac.c;encoder/cavlc.c;encoder/encoder.c;encoder/lookahead.c")
@@ -301,7 +323,11 @@ if(HAS_GETOPT_LONG)
 endif()
 
 if(WITH_AVS)
-  list(APPEND X264_SRCCLI input/avs.c)
+	if(NOT HAS_DLFCN_H)
+		message("unable to find dlfcn.h on your system, that is required by avs.c, skipping AVS support")
+	else()
+	list(APPEND X264_SRCCLI input/avs.c)
+	endif()
 endif()
 
 if(WITH_FFMS)
@@ -388,7 +414,7 @@ endif()
  
 if(WITH_PIC)
   list(APPEND ASM_FLAG_LIST -DPIC)
-  set(CMAKE_POSITION_INDEPENDENT_CODE TRUE)
+  set(CMAKE_POSITION_INDEPENDENT_CODE True)
   if(CMAKE_C_COMPILER_ID MATCHES "(GNU|GCC|.*Clang)")
     
     SET(CMAKE_C_ARCHIVE_CREATE "<CMAKE_AR> rc <TARGET> <LINK_FLAGS> <OBJECTS>") 
@@ -401,7 +427,7 @@ if(WITH_PIC)
   endif()
 
 else()
-  set(CMAKE_POSITION_INDEPENDENT_CODE FALSE)
+  set(CMAKE_POSITION_INDEPENDENT_CODE False)
 endif()
 
 if(${X264_BIT_DEPTH} EQUAL 8)
@@ -412,19 +438,19 @@ list(APPEND ASM_FLAG_LIST -DBIT_DEPTH=${X264_BIT_DEPTH})
 string(REPLACE ";" " " ASM_FLAGS "${ASM_FLAG_LIST}")
 
 if(${CMAKE_BUILD_TYPE} MATCHES "Rel.*")
-  set(CMAKE_ASM_NASM_FLAGS_RELEASE ${ASM_FLAGS})
+  set(CMAKE_ASM_YASM_FLAGS_RELEASE ${ASM_FLAGS})
 endif()
 
 if(${CMAKE_BUILD_TYPE} MATCHES "Deb.*")
-  set(CMAKE_ASM_NASM_FLAGS_DEBUG ${ASM_FLAGS})
+  set(CMAKE_ASM_YASM_FLAGS_DEBUG ${ASM_FLAGS})
 endif()
 
 #TODO: CMAKE_ASM_NASM_FLAGS_RELWITHDEBINFO
 #TODO: CMAKE_ASM_NASM_FLAGS_MINSIZEREL
 
-set(CMAKE_ASM_NASM_FLAGS "${ASM_FLAGS}")
+set(CMAKE_ASM_YASM_FLAGS "${ASM_FLAGS}")
 enable_language(ASM_YASM)
-
+message(STATUS "using asm source : ${ASMSRC}")
 add_library(x264-asm OBJECT ${ASMSRC})
 
 if(${WITH_SHARED})
