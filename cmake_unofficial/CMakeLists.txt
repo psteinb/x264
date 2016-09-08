@@ -5,6 +5,10 @@ if(NOT ("${CMAKE_SYSTEM_PROCESSOR}" MATCHES ".86_64" OR "${CMAKE_SYSTEM_PROCESSO
   message(FATAL_ERROR "${CMAKE_SYSTEM_PROCESSOR} currently not supported")
 endif()
 
+if(NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE "Release")
+endif()
+
 ################################ BUILD OPTIONS ################################
 option(WITH_SHARED "build a shared library" OFF)
 option(WITH_STATIC "build a static library" ON)
@@ -36,6 +40,10 @@ option(WITH_LTO "link-time optimization (only gcc/UNIX supported) (currently uns
 option(WITH_PROFILING "enabled profiling (only gcc/UNIX supported) (currently unsupported in cmake)" OFF)
 
 ################################ GLOBAL DEFINES ################################
+if(WITH_SHARED)
+  set(WITH_PIC ON)
+endif()
+
 #set output bit depth (8-10) [8]
 if(NOT DEFINED X264_BIT_DEPTH)
   set(X264_BIT_DEPTH 8)
@@ -68,6 +76,9 @@ check_c_compiler_flag(-fomit-frame-pointer HAS_OMIT_FRAMEPOINTER)
 check_c_compiler_flag(-fno-tree-vectorize HAS_NO_TREE_VECTORIZE)
 check_c_compiler_flag(-std=gnu99 HAS_STD_GNU99)
 check_c_compiler_flag(-std=c99 HAS_STD_C99)
+check_c_compiler_flag(-shared HAS_SHARED)
+check_c_compiler_flag(-Wl,-Bsymbolic HAS_LINK_SYMBOLIC)
+check_c_compiler_flag(-fPIC HAS_PIC)
 
 check_function_exists(getopt_long HAS_GETOPT_LONG)
 
@@ -102,7 +113,7 @@ if(HAS_MMAN_H)
     set(HAS_THP 0)
     set(HAS_MMAP "0")
 endif()
-message(STATUS "mmap? ${HAS_MMAP}")
+
 if(HAS_SCHED_H)
   set(CMAKE_REQUIRED_FLAGS -D_GNU_SOURCE -Werror)
   check_C_source_compiles("#include <sched.h>\nvoid main(){cpu_set_t p_aff; return CPU_COUNT(&p_aff);}" HAS_CPU_COUNT)
@@ -174,7 +185,7 @@ else()
   set(ARCH_X86_64 0)
 endif()
 
-message(STATUS "ARCH_X86_64=${ARCH_X86_64}, ${CMAKE_SYSTEM_PROCESSOR} ${CPU_ARCH}")
+message(STATUS "detected ARCH_X86_64=${ARCH_X86_64}, ${CMAKE_SYSTEM_PROCESSOR} ${CPU_ARCH}")
 
 if(UNIX)
   if(NOT APPLE)
@@ -380,10 +391,15 @@ if(WITH_PIC)
   set(CMAKE_POSITION_INDEPENDENT_CODE TRUE)
   if(CMAKE_C_COMPILER_ID MATCHES "(GNU|GCC|.*Clang)")
     
-  SET(CMAKE_C_ARCHIVE_CREATE "<CMAKE_AR> rc <TARGET> <LINK_FLAGS> <OBJECTS>") 
-  SET(CMAKE_C_ARCHIVE_APPEND "<CMAKE_AR> r  <TARGET> <LINK_FLAGS> <OBJECTS>") 
+    SET(CMAKE_C_ARCHIVE_CREATE "<CMAKE_AR> rc <TARGET> <LINK_FLAGS> <OBJECTS>") 
+    SET(CMAKE_C_ARCHIVE_APPEND "<CMAKE_AR> r  <TARGET> <LINK_FLAGS> <OBJECTS>")
+    
+  endif()
+
+  if(HAS_PIC)
     add_definitions(-fPIC)
   endif()
+
 else()
   set(CMAKE_POSITION_INDEPENDENT_CODE FALSE)
 endif()
@@ -395,8 +411,6 @@ endif()
 list(APPEND ASM_FLAG_LIST -DBIT_DEPTH=${X264_BIT_DEPTH})
 string(REPLACE ";" " " ASM_FLAGS "${ASM_FLAG_LIST}")
 
-message(STATUS "asm flag list : ${ASM_FLAG_LIST}")
-message(STATUS "asm flags     : ${ASM_FLAGS}")
 if(${CMAKE_BUILD_TYPE} MATCHES "Rel.*")
   set(CMAKE_ASM_NASM_FLAGS_RELEASE ${ASM_FLAGS})
 endif()
@@ -415,8 +429,32 @@ add_library(x264-asm OBJECT ${ASMSRC})
 
 if(${WITH_SHARED})
   add_library(x264-shared SHARED $<TARGET_OBJECTS:x264-objects> $<TARGET_OBJECTS:x264-asm>)
-#  target_link_libraries(x264-shared )
   set_target_properties(x264-shared PROPERTIES OUTPUT_NAME x264)
+  set_target_properties(x264-shared PROPERTIES PUBLIC_HEADER "${X264_SOURCE_ROOT}/x264.h;${PROJECT_BINARY_DIR}/x264_config.h")
+  
+  if(HAS_SHARED AND HAS_LINK_SYMBOLIC)
+    set_target_properties(x264-shared PROPERTIES LINK_FLAGS "-shared -Wl,-Bsymbolic")
+  endif()
+
+  file(STRINGS ${X264_SOURCE_ROOT}/x264.h API_VERSION_LINE REGEX "#define X264_BUILD")
+  if(API_VERSION_LINE AND NOT ${API_VERSION_LINE} EQUAL "")
+    string(REPLACE "#define X264_BUILD " "" API_VERSION ${API_VERSION_LINE})
+  else()
+    set(API_VERSION 0)
+  endif()
+
+  if(API_VERSION AND ${API_VERSION} GREATER 0)
+    set_target_properties(x264-shared PROPERTIES SOVERSION ${API_VERSION})
+  endif()
+  
+
+  
+  INSTALL(TARGETS x264-shared
+    EXPORT x264-targets 
+    LIBRARY DESTINATION lib 
+    RUNTIME DESTINATION bin
+    PUBLIC_HEADER DESTINATION include)
+
 endif()
   
 if(${WITH_STATIC})
@@ -429,6 +467,14 @@ if(${WITH_STATIC})
   add_library(x264-static STATIC $<TARGET_OBJECTS:x264-objects> $<TARGET_OBJECTS:x264-asm>)
   #target_link_libraries(x264-objects x264-asm)
   set_target_properties(x264-static PROPERTIES OUTPUT_NAME x264)
+  set_target_properties(x264-static PROPERTIES PUBLIC_HEADER "${X264_SOURCE_ROOT}/x264.h;${PROJECT_BINARY_DIR}/x264_config.h")
+  
+
+  INSTALL(TARGETS x264-static
+    EXPORT x264-targets 
+    ARCHIVE DESTINATION lib
+    PUBLIC_HEADER DESTINATION include)
+
 endif()
 
 
@@ -452,6 +498,10 @@ if(${WITH_CLI})
   if(WITH_THREADS)
     target_link_libraries(x264 Threads::Threads)
   endif()
+
+  INSTALL(TARGETS x264
+    EXPORT x264-targets 
+    RUNTIME DESTINATION bin)
 
 endif()
 
