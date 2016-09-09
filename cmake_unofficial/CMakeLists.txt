@@ -16,10 +16,10 @@ option(WITH_CLI    "build command line app" OFF)
 option(WITH_OPENCL "build with opencl features on (currently unsupported in cmake)" OFF)
 option(WITH_GPL_FEATURES "build with gpl-only features on" ON)
 
-if(WIN32)
+if(MSVC)
   option(WITH_THREADS "build with POSIX multithreading on" OFF)
   option(WITH_WIN32THREADS "build with windows32 multithreading on" ON)
-else(WIN32)
+else()
   option(WITH_THREADS "build with POSIX multithreading on" ON)
   option(WITH_WIN32THREADS "build with windows32 multithreading on" OFF)
 endif()
@@ -399,12 +399,20 @@ if(NOT YASM_ROOT)
 endif()
 
 ################################ COLLECT ASM APP ################################
-find_program(YASM_APP NAMES yasm yasm${CMAKE_EXECUTABLE_SUFFIX} NAMES_PER_DIR HINTS ${YASM_ROOT} PATHS ${YASM_ROOT} PATH_SUFFIXES bin NO_DEFAULT_PATH)
-find_program(YASM_APP NAMES yasm yasm${CMAKE_EXECUTABLE_SUFFIX})
+if(MSVC)
+	set(YASM_SEARCH_NAMES yasm yasm${CMAKE_EXECUTABLE_SUFFIX})
+	#set(YASM_SEARCH_NAMES vsyasm vsyasm${CMAKE_EXECUTABLE_SUFFIX})
+else()	
+	set(YASM_SEARCH_NAMES yasm yasm${CMAKE_EXECUTABLE_SUFFIX})
+endif()	
+
+find_program(YASM_APP NAMES ${YASM_SEARCH_NAMES} HINTS ${YASM_ROOT} PATHS ${YASM_ROOT} PATH_SUFFIXES bin NO_DEFAULT_PATH)
+find_program(YASM_APP NAMES ${YASM_SEARCH_NAMES})
 if(NOT EXISTS ${YASM_APP})
   message(FATAL_ERROR "unable to locate yasm or yasm${CMAKE_EXECUTABLE_SUFFIX} (hint cmake for the path containing yasm by defining YASM_ROOT)")
 endif()
-#set(CMAKE_ASM_NASM_COMPILER ${YASM_APP})
+
+set(CMAKE_ASM_YASM_COMPILER ${YASM_APP})
 ################################ COLLECT ASM FLAGS ################################
 set(ASM_FLAG_LIST -I${X264_SOURCE_ROOT} -I${X264_SOURCE_ROOT}/common/x86/ -Worphan-labels -DSTACK_ALIGNMENT=${X264_STACK_ALIGNMENT})
 
@@ -436,6 +444,7 @@ endif()
 
 list(APPEND ASM_FLAG_LIST -DBIT_DEPTH=${X264_BIT_DEPTH})
 string(REPLACE ";" " " ASM_FLAGS "${ASM_FLAG_LIST}")
+set(CMAKE_ASM_YASM_FLAGS "${ASM_FLAGS}")
 
 if(${CMAKE_BUILD_TYPE} MATCHES "Rel.*")
   set(CMAKE_ASM_YASM_FLAGS_RELEASE ${ASM_FLAGS})
@@ -448,13 +457,66 @@ endif()
 #TODO: CMAKE_ASM_NASM_FLAGS_RELWITHDEBINFO
 #TODO: CMAKE_ASM_NASM_FLAGS_MINSIZEREL
 
-set(CMAKE_ASM_YASM_FLAGS "${ASM_FLAGS}")
+
 enable_language(ASM_YASM)
-message(STATUS "using asm source : ${ASMSRC}")
+message(STATUS "using asm compiler : ${CMAKE_ASM_YASM_COMPILER} (${YASM_APP})")
+message(STATUS "using asm source   : ${ASMSRC}")
+source_group(ASM FILES ${ASMSRC})
 add_library(x264-asm OBJECT ${ASMSRC})
+#on Windows we need to call yasm manually :(
+if(MSVC)
+if( CMAKE_SIZEOF_VOID_P MATCHES 8 )
+    list(APPEND ASM_FLAG_LIST -DARCH_X86_64=1)
+    if(APPLE)
+        list(APPEND ASM_FLAG_LIST -f macho64 -m amd64 -DPREFIX)
+    elseif(UNIX AND NOT CYGWIN)
+        list(APPEND ASM_FLAG_LIST -f elf64 -m amd64)
+    else()
+        list(APPEND ASM_FLAG_LIST -f win64 -m amd64)
+    endif()
+else()
+    list(APPEND ASM_FLAG_LIST -DARCH_X86_64=0)
+    if(APPLE)
+        list(APPEND ASM_FLAG_LIST -f macho -DPREFIX)
+    elseif(UNIX AND NOT CYGWIN)
+        list(APPEND ASM_FLAG_LIST -f elf32)
+    else()
+        list(APPEND ASM_FLAG_LIST -f win32 -DPREFIX)
+    endif()
+endif()
+
+#string(REPLACE ";" " " ASM_FLAGS "${ASM_FLAG_LIST}")
+
+message(STATUS "using asm flags    : ${YASM_APP} ${ASM_FLAG_LIST} foo.asm -o foo.asm.obj")
+foreach(_SRC IN LISTS ASMSRC)
+get_filename_component(_SRC_NAMESTUB ${_SRC} NAME_WE)
+get_filename_component(_SRC_EXT ${_SRC} EXT)
+string(REPLACE "${_SRC_EXT}" ".obj" _OBJ "${_SRC}")
+            list(APPEND ASMOBJS ${_OBJ})
+            add_custom_command(
+                OUTPUT ${_OBJ}
+                COMMAND ${YASM_APP} ARGS ${ASM_FLAG_LIST} ${_SRC} -o ${_OBJ}
+                DEPENDS ${_SRC})
+				
+# add_custom_target(${_SRC_NAMESTUB}-object
+				# BYPRODUCTS ${_SRC}.obj
+                # COMMAND ${YASM_APP} ${ASM_FLAGS} ${_SRC} -o ${_SRC}.obj
+				# COMMENT ">> launching ${YASM_APP} ${ASM_FLAGS} ${_SRC} -o ${_SRC}.obj"
+				# VERBATIM USES_TERMINAL
+                # SOURCES ${_SRC}
+				# )
+				# add_dependencies(x264-asm ${_SRC_NAMESTUB}-object)
+endforeach()
+endif()
+
 
 if(${WITH_SHARED})
-  add_library(x264-shared SHARED $<TARGET_OBJECTS:x264-objects> $<TARGET_OBJECTS:x264-asm>)
+	if(NOT MSVC)
+		add_library(x264-shared SHARED $<TARGET_OBJECTS:x264-objects> $<TARGET_OBJECTS:x264-asm>)
+	else()
+		add_library(x264-shared SHARED $<TARGET_OBJECTS:x264-objects> ${ASMOBJS} ${ASMSRCS})
+	endif()
+  
   set_target_properties(x264-shared PROPERTIES OUTPUT_NAME x264)
   set_target_properties(x264-shared PROPERTIES PUBLIC_HEADER "${X264_SOURCE_ROOT}/x264.h;${PROJECT_BINARY_DIR}/x264_config.h")
   
@@ -489,8 +551,11 @@ if(${WITH_STATIC})
     set(CMAKE_AR "gcc-ar")
   endif()
 
-  
+  if(NOT MSVC)
   add_library(x264-static STATIC $<TARGET_OBJECTS:x264-objects> $<TARGET_OBJECTS:x264-asm>)
+  else()
+  add_library(x264-static STATIC $<TARGET_OBJECTS:x264-objects> ${ASMOBJS} ${ASMSRCS})
+  endif()
   #target_link_libraries(x264-objects x264-asm)
   set_target_properties(x264-static PROPERTIES OUTPUT_NAME x264)
   set_target_properties(x264-static PROPERTIES PUBLIC_HEADER "${X264_SOURCE_ROOT}/x264.h;${PROJECT_BINARY_DIR}/x264_config.h")
