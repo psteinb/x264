@@ -12,7 +12,7 @@
 #define HAVE_LOG2F @HAS_LOG2F@
 #define HAVE_MMAP @HAS_MMAP@
 #define HAVE_THP @HAS_THP@
-#define HAVE_AVS 1
+#define HAVE_AVS @HAS_AVS@
 #define USE_AVXSYNTH 1
 #define HAVE_VECTOREXT @HAS_VECTOREXT@
 #define fseek @X264_FSEEK@
@@ -36,3 +36,4 @@
 #define HAVE_INTEL_DISPATCHER 0
 #define HAVE_MSA 0
 #define HAVE_WINRT 0
+#define HAVE_MEMALIGN @HAS_MEMALIGN@
