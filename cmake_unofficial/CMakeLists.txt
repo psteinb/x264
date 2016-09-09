@@ -38,6 +38,10 @@ option(WITH_LSMASH "build with lsmash support (currently unsupported in cmake)" 
 option(WITH_SYS_X264 "build with system libx264 support (currently unsupported in cmake)" OFF)
 option(WITH_LTO "link-time optimization (only gcc/UNIX supported) (currently unsupported in cmake)" OFF)
 option(WITH_PROFILING "enabled profiling (only gcc/UNIX supported) (currently unsupported in cmake)" OFF)
+option(WITH_STATIC_RT "link to runtime statically" OFF)
+if(WIN32)
+	set(WITH_STATIC_RT ON)
+endif()
 
 ################################ GLOBAL DEFINES ################################
 if(WITH_SHARED)
@@ -79,8 +83,15 @@ check_c_compiler_flag(-std=c99 HAS_STD_C99)
 check_c_compiler_flag(-shared HAS_SHARED)
 check_c_compiler_flag(-Wl,-Bsymbolic HAS_LINK_SYMBOLIC)
 check_c_compiler_flag(-fPIC HAS_PIC)
+check_c_compiler_flag(/W4 HAS_MSVC_FULLWARNINGS)
+check_c_compiler_flag(/Ob2 HAS_MSVC_ALWAYSINLINE)
+check_c_compiler_flag(/MP HAS_MSVC_MULTITHREADEDBUILD)
+check_c_compiler_flag(/MT HAS_MSVC_MULTITHREADEDBUILD)
+check_c_compiler_flag(/GS- HAS_BUFFER_SECCHECK)
 
 check_function_exists(getopt_long HAS_GETOPT_LONG)
+
+
 
 check_include_file(math.h HAS_MATH_H)
 check_include_file(dlfcn.h HAS_DLFCN_H)
@@ -107,15 +118,20 @@ if(HAS_STD_C99)
   check_C_source_compiles("int main(){for( int i = 0; i < 9; i++ );;return 0;}" COMPILES_C99)
 endif()
 
-
-  
+if(HAS_MALLOC_H)
+  check_C_source_compiles("#include <malloc.h>;int main(){int* buf = (int*)memalign(8,16);}" HAS_MEMALIGN)
+  check_C_source_compiles("#include <malloc.h>;int main(){int* buf = (int*)_aligned_malloc(16,8);}" HAS_ALIGNEDMEMALIGN)
+  if(NOT HAS_MEMALIGN)
+	set(HAS_MEMALIGN 0)
+  endif()
+endif()
 
 if(HAS_MMAN_H)
   check_symbol_exists(MAP_PRIVATE sys/mman.h HAS_MMAP)
   check_symbol_exists(MADV_HUGEPAGE sys/mman.h HAS_THP)
   else()
     set(HAS_THP 0)
-    set(HAS_MMAP "0")
+    set(HAS_MMAP 0)
 endif()
 
 if(HAS_SCHED_H)
@@ -146,11 +162,11 @@ if(HAS_FSEEKO)
   set(X264_FSEEK fseeko)
   set(X264_FTELL ftello)
 elseif(HAS_FSEEKO64)
-  set(X264_FSEEK fseeko)
-  set(X264_FTELL ftello)
+  set(X264_FSEEK fseeko64)
+  set(X264_FTELL ftello64)
 elseif(HAS_FSEEKI64)
-  set(X264_FSEEK fseeko)
-  set(X264_FTELL ftello)
+  set(X264_FSEEK _fseeki64)
+  set(X264_FTELL _ftelli64)
 endif()
 
 if(WITH_GPL_FEATURES)
@@ -261,8 +277,48 @@ if(UNIX)
   endif()
 endif(UNIX)
 
+if(MSVC)
+    # disable Microsofts suggestions for proprietary secure APIs
+    add_definitions(/D_CRT_SECURE_NO_WARNINGS)
+	
+	if(HAS_MSVC_ALWAYSINLINE)
+	list(APPEND EXTRA_CFLAGS_LIST /Ob2)
+	endif()
+	
+	if(HAS_MSVC_FULLWARNINGS)
+	list(APPEND EXTRA_CFLAGS_LIST /W4)
+	endif()
+	
+	if(HAS_MSVC_MULTITHREADEDBUILD)
+	list(APPEND EXTRA_CFLAGS_LIST /MP)
+	endif()
+	
+	# if(${CPU_ARCH} MATCHES "x86_64")
+		# list(APPEND EXTRA_LDFLAGS_LIST /LARGEADDRESSAWARE)
+		# list(APPEND EXTRA_LDFLAGS_LIST /LARGEADDRESSAWARE)
+	# endif()
+	
+	if(HAS_BUFFER_SECCHECK)
+		add_definitions(-GS-)
+	endif()
+	
+	
+	
+	
+	# if(${CMAKE_BUILD_TYPE} MATCHES "Rel.*")
+        # list(APPEND EXTRA_CFLAGS_LIST -O3)
+	# else()
+		# list(APPEND EXTRA_CFLAGS_LIST -g)
+    # endif()
+  
+endif()
+
 string(REPLACE ";" " " EXTRA_CFLAGS "${EXTRA_CFLAGS_LIST}")
+string(REPLACE ";" " " EXTRA_LDFLAGS "${EXTRA_LDFLAGS_LIST}")
+
 set(CMAKE_C_FLAGS ${EXTRA_CFLAGS})
+set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} ${EXTRA_LDFLAGS}")
+set(CMAKE_STATIC_LINKER_FLAGS "${CMAKE_STATIC_LINKER_FLAGS} ${EXTRA_LDFLAGS}")
 if(${CMAKE_BUILD_TYPE} MATCHES "Rel.*")
   set(CMAKE_C_FLAGS_RELEASE "${EXTRA_CFLAGS}")
   set(CMAKE_C_FLAGS_RELWDBG "${EXTRA_CFLAGS}")
@@ -270,6 +326,13 @@ endif()
 
 if(${CMAKE_BUILD_TYPE} MATCHES "Debug")
   set(CMAKE_C_FLAGS_DEBUG "${EXTRA_CFLAGS}")
+endif()
+
+if(WIN32 OR MSVC)
+set(CompilerFlags CMAKE_C_FLAGS_DEBUG CMAKE_C_FLAGS_RELEASE)
+foreach(CompilerFlag ${CompilerFlags})
+	string(REPLACE "/MD" "/MT" ${CompilerFlag} "${${CompilerFlag}}")
+endforeach()
 endif()
 
 get_filename_component(X264_SOURCE_ROOT ${PROJECT_SOURCE_DIR}/.. ABSOLUTE)
@@ -306,6 +369,18 @@ if(WITH_THREADS)
   endif()
 endif()
 
+if(WITH_AVS)
+	if(NOT HAS_DLFCN_H)
+		message("unable to find dlfcn.h on your system, that is required by avs.c, skipping AVS support")
+		set(HAS_AVS 0)
+	else()
+	
+	set(HAS_AVS 1)
+	endif()
+else()
+	set(HAS_AVS 0)
+endif()
+
 configure_file(${PROJECT_SOURCE_DIR}/config.h.in ${PROJECT_BINARY_DIR}/config.h)
 configure_file(${PROJECT_SOURCE_DIR}/x264_config.h.in ${PROJECT_BINARY_DIR}/x264_config.h)
 include_directories(${PROJECT_BINARY_DIR})
@@ -322,12 +397,9 @@ if(HAS_GETOPT_LONG)
   list(APPEND X264_SRCCLI extras/getopt.c)
 endif()
 
-if(WITH_AVS)
-	if(NOT HAS_DLFCN_H)
-		message("unable to find dlfcn.h on your system, that is required by avs.c, skipping AVS support")
-	else()
-	list(APPEND X264_SRCCLI input/avs.c)
-	endif()
+
+if(HAS_AVS)
+list(APPEND X264_SRCCLI input/avs.c)
 endif()
 
 if(WITH_FFMS)
@@ -491,7 +563,8 @@ message(STATUS "using asm flags    : ${YASM_APP} ${ASM_FLAG_LIST} foo.asm -o foo
 foreach(_SRC IN LISTS ASMSRC)
 get_filename_component(_SRC_NAMESTUB ${_SRC} NAME_WE)
 get_filename_component(_SRC_EXT ${_SRC} EXT)
-string(REPLACE "${_SRC_EXT}" ".obj" _OBJ "${_SRC}")
+set(_OBJ ${PROJECT_BINARY_DIR}/${_SRC_NAMESTUB}.obj)
+#string(REPLACE "${_SRC_EXT}" ".obj" _OBJ "${_SRC}")
             list(APPEND ASMOBJS ${_OBJ})
             add_custom_command(
                 OUTPUT ${_OBJ}
@@ -546,6 +619,7 @@ if(${WITH_SHARED})
 endif()
   
 if(${WITH_STATIC})
+
   find_program(GCC_AR_APP gcc-ar)
   if(EXISTS ${GCC_AR_APP})
     set(CMAKE_AR "gcc-ar")
@@ -560,7 +634,8 @@ if(${WITH_STATIC})
   set_target_properties(x264-static PROPERTIES OUTPUT_NAME x264)
   set_target_properties(x264-static PROPERTIES PUBLIC_HEADER "${X264_SOURCE_ROOT}/x264.h;${PROJECT_BINARY_DIR}/x264_config.h")
   
-
+  
+  
   INSTALL(TARGETS x264-static
     EXPORT x264-targets 
     ARCHIVE DESTINATION lib
@@ -571,7 +646,8 @@ endif()
 
 if(${WITH_CLI})
   
-  add_executable(x264 $<TARGET_OBJECTS:x264-appobjects>)
+  #add_executable(x264 $<TARGET_OBJECTS:x264-appobjects>)
+  add_executable(x264 ${X264_SRCCLI})
   if(TARGET x264-static)
     target_link_libraries(x264 x264-static)
   else()
