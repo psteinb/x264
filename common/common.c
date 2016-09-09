@@ -1201,7 +1201,11 @@ void *x264_malloc( int i_size )
     /* Attempt to allocate huge pages to reduce TLB misses. */
     if( i_size >= HUGE_PAGE_THRESHOLD )
     {
+#if HAVE_MEMALIGN
         align_buf = memalign( HUGE_PAGE_SIZE, i_size );
+#else
+	    align_buf = _aligned_malloc( i_size , HUGE_PAGE_SIZE);
+#endif
         if( align_buf )
         {
             /* Round up to the next huge page boundary if we are close enough. */
@@ -1213,7 +1217,11 @@ void *x264_malloc( int i_size )
 #undef HUGE_PAGE_SIZE
 #undef HUGE_PAGE_THRESHOLD
 #endif
+#if HAVE_MEMALIGN
         align_buf = memalign( NATIVE_ALIGN, i_size );
+#else
+	    align_buf = _aligned_malloc( i_size , NATIVE_ALIGN);
+#endif
 #else
     uint8_t *buf = malloc( i_size + (NATIVE_ALIGN-1) + sizeof(void **) );
     if( buf )
@@ -1236,7 +1244,11 @@ void x264_free( void *p )
     if( p )
     {
 #if HAVE_MALLOC_H
+#if HAVE_MEMALIGN 
         free( p );
+#else
+		_aligned_free(p);
+#endif
 #else
         free( *( ( ( void **) p ) - 1 ) );
 #endif
