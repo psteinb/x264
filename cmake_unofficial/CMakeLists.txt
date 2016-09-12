@@ -67,6 +67,8 @@ include(CheckFunctionExists)
 include(CheckSymbolExists)
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}")
 include(list_utils)
+
+#GNU related
 check_c_compiler_flag(-Wno-maybe-uninitialized HAS_NOMAYBE_UNINITIALISED)
 check_c_compiler_flag(-Wshadow HAS_SHADOW)
 check_c_compiler_flag(-Wall HAS_ALL)
@@ -83,14 +85,25 @@ check_c_compiler_flag(-std=c99 HAS_STD_C99)
 check_c_compiler_flag(-shared HAS_SHARED)
 check_c_compiler_flag(-Wl,-Bsymbolic HAS_LINK_SYMBOLIC)
 check_c_compiler_flag(-fPIC HAS_PIC)
+
+#MSVC
 check_c_compiler_flag(/W4 HAS_MSVC_FULLWARNINGS)
 check_c_compiler_flag(/Ob2 HAS_MSVC_ALWAYSINLINE)
 check_c_compiler_flag(/MP HAS_MSVC_MULTITHREADEDBUILD)
-check_c_compiler_flag(/MT HAS_MSVC_MULTITHREADEDBUILD)
+
+check_c_compiler_flag(/MT HAS_MSVC_MULTITHREADEDAPPRT)
+check_c_compiler_flag(/MTd HAS_MSVC_MULTITHREADEDAPPDEBUGRT)
+check_c_compiler_flag(/MD HAS_MSVC_MULTITHREADEDDLL)
+check_c_compiler_flag(/MDd HAS_MSVC_MULTITHREADEDDLLDDEBUG)
+
 check_c_compiler_flag(/GS- HAS_BUFFER_SECCHECK)
+check_c_compiler_flag(/Oi HAS_MSVC_OPT_INTRINSICS)
+check_c_compiler_flag(/Oy HAS_MSVC_OMIT_FRAMEPOINTER)
+check_c_compiler_flag(/Od HAS_MSVC_NOOPT)
+check_c_compiler_flag(/Ox HAS_MSVC_FASTCODE)
+check_c_compiler_flag(/fp:fast HAS_MSVC_FASTMATH)
 
 check_function_exists(getopt_long HAS_GETOPT_LONG)
-
 
 
 check_include_file(math.h HAS_MATH_H)
@@ -293,6 +306,33 @@ if(MSVC)
 	list(APPEND EXTRA_CFLAGS_LIST /MP)
 	endif()
 	
+	if(HAS_MSVC_OMIT_FRAMEPOINTER)
+	list(APPEND EXTRA_CFLAGS_LIST /Oy)
+	endif()
+	
+	if(HAS_MSVC_FASTCODE)
+	if(${CMAKE_BUILD_TYPE} MATCHES "Rel.*")
+	list(APPEND EXTRA_CFLAGS_LIST /Ox)
+	endif()
+	endif()
+	
+	if(HAS_MSVC_FASTMATH)
+	if(${CMAKE_BUILD_TYPE} MATCHES "Rel.*")
+	list(APPEND EXTRA_CFLAGS_LIST /fp:fast)
+	endif()
+	endif()
+	
+	if(HAS_MSVC_FULLDEBUG)
+	if(${CMAKE_BUILD_TYPE} MATCHES "(Debug|Dbg)")
+	list(APPEND EXTRA_CFLAGS_LIST /Zi)
+	endif()
+	endif()
+	
+	if(${CMAKE_BUILD_TYPE} MATCHES "Debug")
+	if(HAS_MSVC_NOOPT)
+	list(APPEND EXTRA_CFLAGS_LIST /Od)
+	endif()
+	endif()
 	# if(${CPU_ARCH} MATCHES "x86_64")
 		# list(APPEND EXTRA_LDFLAGS_LIST /LARGEADDRESSAWARE)
 		# list(APPEND EXTRA_LDFLAGS_LIST /LARGEADDRESSAWARE)
@@ -316,16 +356,17 @@ endif()
 string(REPLACE ";" " " EXTRA_CFLAGS "${EXTRA_CFLAGS_LIST}")
 string(REPLACE ";" " " EXTRA_LDFLAGS "${EXTRA_LDFLAGS_LIST}")
 
-set(CMAKE_C_FLAGS ${EXTRA_CFLAGS})
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${EXTRA_CFLAGS}")
 set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} ${EXTRA_LDFLAGS}")
 set(CMAKE_STATIC_LINKER_FLAGS "${CMAKE_STATIC_LINKER_FLAGS} ${EXTRA_LDFLAGS}")
 if(${CMAKE_BUILD_TYPE} MATCHES "Rel.*")
-  set(CMAKE_C_FLAGS_RELEASE "${EXTRA_CFLAGS}")
-  set(CMAKE_C_FLAGS_RELWDBG "${EXTRA_CFLAGS}")
+  set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} ${EXTRA_CFLAGS}")
+  set(CMAKE_C_FLAGS_RELWDBG "${CMAKE_C_FLAGS_RELWDBG} ${EXTRA_CFLAGS}")
 endif()
 
 if(${CMAKE_BUILD_TYPE} MATCHES "Debug")
-  set(CMAKE_C_FLAGS_DEBUG "${EXTRA_CFLAGS}")
+  set(CMAKE_C_FLAGS_RELWDBG "${CMAKE_C_FLAGS_RELWDBG} ${EXTRA_CFLAGS}")
+  set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} ${EXTRA_CFLAGS}")
 endif()
 
 if(WIN32 OR MSVC)
@@ -557,28 +598,19 @@ else()
     endif()
 endif()
 
-#string(REPLACE ";" " " ASM_FLAGS "${ASM_FLAG_LIST}")
 
 message(STATUS "using asm flags    : ${YASM_APP} ${ASM_FLAG_LIST} foo.asm -o foo.asm.obj")
 foreach(_SRC IN LISTS ASMSRC)
 get_filename_component(_SRC_NAMESTUB ${_SRC} NAME_WE)
 get_filename_component(_SRC_EXT ${_SRC} EXT)
 set(_OBJ ${PROJECT_BINARY_DIR}/${_SRC_NAMESTUB}.obj)
-#string(REPLACE "${_SRC_EXT}" ".obj" _OBJ "${_SRC}")
+
             list(APPEND ASMOBJS ${_OBJ})
             add_custom_command(
                 OUTPUT ${_OBJ}
                 COMMAND ${YASM_APP} ARGS ${ASM_FLAG_LIST} ${_SRC} -o ${_OBJ}
                 DEPENDS ${_SRC})
 				
-# add_custom_target(${_SRC_NAMESTUB}-object
-				# BYPRODUCTS ${_SRC}.obj
-                # COMMAND ${YASM_APP} ${ASM_FLAGS} ${_SRC} -o ${_SRC}.obj
-				# COMMENT ">> launching ${YASM_APP} ${ASM_FLAGS} ${_SRC} -o ${_SRC}.obj"
-				# VERBATIM USES_TERMINAL
-                # SOURCES ${_SRC}
-				# )
-				# add_dependencies(x264-asm ${_SRC_NAMESTUB}-object)
 endforeach()
 endif()
 
