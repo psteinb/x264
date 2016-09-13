@@ -101,6 +101,7 @@ check_c_compiler_flag(/Oi HAS_MSVC_OPT_INTRINSICS)
 check_c_compiler_flag(/Oy HAS_MSVC_OMIT_FRAMEPOINTER)
 check_c_compiler_flag(/Od HAS_MSVC_NOOPT)
 check_c_compiler_flag(/Ox HAS_MSVC_FASTCODE)
+check_c_compiler_flag(/Zp HAS_MSVC_STRUCT_STACKALIGN)
 check_c_compiler_flag(/fp:fast HAS_MSVC_FASTMATH)
 
 check_function_exists(getopt_long HAS_GETOPT_LONG)
@@ -154,13 +155,41 @@ else()
   set(HAS_CPU_COUNT 0)
 endif()
 
+
 check_C_source_compiles("void main(){__asm__(\"pabsw %xmm0, %xmm0\");}" HAS_X86_INLINE_ASM)
 if(HAS_X86_INLINE_ASM)
   check_C_source_compiles("void main(){__asm__(\"pabsw %xmm0, %xmm0\");}" HAS_MMX)
-else()
+else(HAS_X86_INLINE_ASM)
   set(HAS_X86_INLINE_ASM 0)
   set(HAS_MMX 0)
+endif(HAS_X86_INLINE_ASM)
+
+if(MSVC AND ${HAS_X86_INLINE_ASM} EQUAL 0)
+check_C_source_compiles("void main(){__asm pabsw xmm0, xmm0;}" HAS_X86_INLINE_ASM)
+if(HAS_X86_INLINE_ASM)
+  check_C_source_compiles("void main(){__asm pabsw xmm0, xmm0;}" HAS_MMX)
+else(HAS_X86_INLINE_ASM)
+  set(HAS_X86_INLINE_ASM 0)
+  set(HAS_MMX 0)
+endif(HAS_X86_INLINE_ASM)
+
+
+if("${HAS_X86_INLINE_ASM}" EQUAL 0)
+
+if(HAS_MSVC_OPT_INTRINSICS)
+	set(CMAKE_REQUIRED_FLAGS "/Oi")
 endif()
+check_C_source_compiles("#include <emmintrin.h>\nint main(void){int v = 0;__m128i vreg = {0};vreg = _mm_set1_epi32(v);return v;}" HAS_MMX_FROM_INTRINSICS)
+if(NOT ${HAS_MM_FROM_INTRINSICS})
+set(HAS_MMX 0)
+else()
+set(HAS_MMX 1)
+endif()
+
+endif()
+endif()
+
+
 
 check_C_source_compiles("#include <stdint.h>\nvoid main(){uint32_t test_vec __attribute__ ((vector_size (16))) = {0,1,2,3};}" HAS_VECTOREXT)
 if(NOT HAS_VECTOREXT)
@@ -314,6 +343,17 @@ if(MSVC)
 	if(${CMAKE_BUILD_TYPE} MATCHES "Rel.*")
 	list(APPEND EXTRA_CFLAGS_LIST /Ox)
 	endif()
+	endif()
+		
+	#according to https://msdn.microsoft.com/en-us/library/aa290049(v=vs.71).aspx
+	if(${ARCH_X86_64} EQUAL 1)
+	set(X264_STACK_ALIGNMENT 16)
+	else()
+	set(X264_STACK_ALIGNMENT 4)
+	endif()
+	
+	if(HAS_MSVC_STRUCT_STACKALIGN)
+	list(APPEND EXTRA_CFLAGS_LIST /Zp${X264_STACK_ALIGNMENT})
 	endif()
 	
 	if(HAS_MSVC_FASTMATH)
