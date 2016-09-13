@@ -13,7 +13,8 @@
 #define HAVE_MMAP @HAS_MMAP@
 #define HAVE_THP @HAS_THP@
 #define HAVE_AVS @HAS_AVS@
-#define USE_AVXSYNTH 1
+#cmakedefine USE_AVXSYNTH @USE_AVXSYNTH@
+#cmakedefine USE_AVISYNTH @USE_AVISYNTH@
 #define HAVE_VECTOREXT @HAS_VECTOREXT@
 #define fseek @X264_FSEEK@
 #define ftell @X264_FTELL@
