@@ -15,14 +15,15 @@ option(WITH_STATIC "build a static library" ON)
 option(WITH_CLI    "build command line app" OFF)
 option(WITH_OPENCL "build with opencl features on (currently unsupported in cmake)" OFF)
 option(WITH_GPL_FEATURES "build with gpl-only features on" ON)
+option(WITH_THREADS "build with multithreading on" ON)
 
-if(MSVC)
-  option(WITH_THREADS "build with POSIX multithreading on" OFF)
-  option(WITH_WIN32THREADS "build with windows32 multithreading on" ON)
-else()
-  option(WITH_THREADS "build with POSIX multithreading on" ON)
-  option(WITH_WIN32THREADS "build with windows32 multithreading on" OFF)
-endif()
+# if(MSVC)
+  
+  # option(WITH_WIN32THREADS "build with windows32 multithreading on" ON)
+# else()
+  # option(WITH_THREADS "build with POSIX multithreading on" ON)
+  # option(WITH_WIN32THREADS "build with windows32 multithreading on" OFF)
+# endif()
 
 option(WITH_INTERLACED "build with interlaced encoding support" ON)
 option(WITH_ASM "platform-specific assembly optimizations" ON)
@@ -431,7 +432,7 @@ if(CMAKE_C_COMPILER_ID MATCHES "(GNU|GCC|.*Clang)")
   SET(CMAKE_C_ARCHIVE_APPEND "<CMAKE_AR> r  <TARGET> <LINK_FLAGS> <OBJECTS>") 
 endif()
 
-set(HAS_GETOPT_LONG TRUE)
+#set(HAS_GETOPT_LONG TRUE)
 set(HAVE_POSIXTHREAD 0)
 set(HAVE_THREAD 0)
 set(HAVE_BEOSTHREAD 0)
@@ -441,17 +442,19 @@ if(WITH_THREADS)
   find_package(Threads REQUIRED)
   if(THREADS_FOUND)
     set(HAVE_THREAD 1)
-    if(UNIX)
-      set(HAVE_POSIXTHREAD 1)
-      set(HAVE_THREAD 1)
-      set(HAVE_WIN32THREAD 0)
-    endif()
-    if(WIN32)
-      set(HAVE_POSIXTHREAD 0)
-      set(HAVE_THREAD 1)
-      set(HAVE_WIN32THREAD 1)
-    endif()
-  endif()
+    set(HAVE_POSIXTHREAD ${CMAKE_USE_PTHREADS_INIT})
+    set(HAVE_WIN32THREAD ${CMAKE_USE_WIN32_THREADS_INIT})
+	if(HAVE_POSIXTHREAD)
+	message(STATUS "threading library found: pthreads")
+	endif()
+	
+	if(HAVE_WIN32THREAD)
+	message(STATUS "threading library found: win32threads")
+	endif()
+	
+  else(THREADS_FOUND)
+	message(STATUS "threading library NOT found")
+  endif(THREADS_FOUND)
 endif()
 
 if(WITH_AVS)
@@ -484,7 +487,8 @@ set(X264_SRCS "common/mc.c;common/predict.c;common/pixel.c;common/macroblock.c;c
 
 set(X264_SRCCLI "x264.c;input/input.c;input/timecode.c;input/raw.c;input/y4m.c;output/raw.c;output/matroska.c;output/matroska_ebml.c;output/flv.c;output/flv_bytestream.c;filters/filters.c;filters/video/video.c;filters/video/source.c;filters/video/internal.c;filters/video/resize.c;filters/video/cache.c;filters/video/fix_vfr_pts.c;filters/video/select_every.c;filters/video/crop.c;filters/video/depth.c")
 
-if(HAS_GETOPT_LONG)
+message(STATUS "getopt_long found? .${HAS_GETOPT_LONG}.")
+if(NOT "${HAS_GETOPT_LONG}" EQUAL "")
   list(APPEND X264_SRCCLI extras/getopt.c)
 endif()
 
@@ -497,12 +501,12 @@ if(WITH_FFMS)
   list(APPEND X264_SRCS input/ffms.c)
 endif()
 
-if(WITH_THREADS)
+if(HAVE_THREAD)
   list(APPEND X264_SRCCLI input/thread.c)
   list(APPEND X264_SRCS common/threadpool.c)
 endif()
 
-if(WITH_WIN32THREAD)
+if(HAVE_WIN32THREAD)
   list(APPEND X264_SRCS common/win32thread.c)
 endif()
 
@@ -690,7 +694,9 @@ if(${WITH_SHARED})
     set_target_properties(x264-shared PROPERTIES SOVERSION ${API_VERSION})
   endif()
   
-
+  if(WITH_THREADS)
+    target_link_libraries(x264-shared Threads::Threads)
+  endif()
   
   INSTALL(TARGETS x264-shared
     EXPORT x264-targets 
@@ -716,7 +722,9 @@ if(${WITH_STATIC})
   set_target_properties(x264-static PROPERTIES OUTPUT_NAME x264)
   set_target_properties(x264-static PROPERTIES PUBLIC_HEADER "${X264_SOURCE_ROOT}/x264.h;${PROJECT_BINARY_DIR}/x264_config.h")
   
-  
+  if(WITH_THREADS)
+    target_link_libraries(x264-static Threads::Threads)
+  endif()
   
   INSTALL(TARGETS x264-static
     EXPORT x264-targets 
