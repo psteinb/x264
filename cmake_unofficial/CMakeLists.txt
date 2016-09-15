@@ -535,7 +535,6 @@ PREPEND_ITEM("${X264_SRCCLI}" "${X264_SOURCE_ROOT}/" X264_SRCCLI)
 add_library(x264-objects OBJECT ${X264_SRCS})
 add_library(x264-appobjects OBJECT ${X264_SRCCLI})
 
-
 ################################ COLLECT ASM SOURCES ################################
 
 list(APPEND X264_X86SRC0 const-a.asm cabac-a.asm dct-a.asm deblock-a.asm mc-a.asm mc-a2.asm pixel-a.asm predict-a.asm quant-a.asm cpu-a.asm dct-32.asm bitstream-a.asm )
@@ -678,6 +677,7 @@ if(${WITH_SHARED})
   
   set_target_properties(x264-shared PROPERTIES OUTPUT_NAME x264)
   set_target_properties(x264-shared PROPERTIES PUBLIC_HEADER "${X264_SOURCE_ROOT}/x264.h;${PROJECT_BINARY_DIR}/x264_config.h")
+  set(X264_SHARED_TARGETS x264-shared)
   
   if(HAS_SHARED AND HAS_LINK_SYMBOLIC)
     set_target_properties(x264-shared PROPERTIES LINK_FLAGS "-shared -Wl,-Bsymbolic")
@@ -697,8 +697,54 @@ if(${WITH_SHARED})
   if(WITH_THREADS)
     target_link_libraries(x264-shared Threads::Threads)
   endif()
+
+  if(WIN32)
+  get_target_property(SHARED_LIB_NAME x264-shared OUTPUT_NAME)
+  set(X264_DEF_FILE ${PROJECT_BINARY_DIR}/${CMAKE_BUILD_TYPE}/${SHARED_LIB_NAME}.def)
+  set(X264_IMPLIB_FILE ${PROJECT_BINARY_DIR}/${CMAKE_BUILD_TYPE}/${SHARED_LIB_NAME}.lib)
   
-  INSTALL(TARGETS x264-shared
+  message("++ creating ${X264_DEF_FILE} ${X264_IMPLIB_FILE}")
+  
+  file(STRINGS ${X264_SOURCE_ROOT}/x264.h X264_API_FUNCTIONS REGEX "^X264_API_EXPORT.*(int|void|x264_t).*x264")
+  file(STRINGS ${X264_SOURCE_ROOT}/x264.h X264_API_DATA REGEX "extern.*x264")
+  
+  if(NOT IS_DIRECTORY ${PROJECT_BINARY_DIR}/${CMAKE_BUILD_TYPE})
+  file(MAKE_DIRECTORY ${PROJECT_BINARY_DIR}/${CMAKE_BUILD_TYPE})
+  endif()
+
+  
+  file(WRITE ${X264_DEF_FILE} "LIBRARY x264\r\n")
+  file(APPEND ${X264_DEF_FILE} "EXPORTS\r\n")
+  
+  foreach(_FUNC IN LISTS X264_API_FUNCTIONS)
+  string(REGEX REPLACE ".*(x264.*)\\(.*" "\\1" FUNC_DEF "${_FUNC}")
+  string(REGEX REPLACE "open" "open_${API_VERSION}" FUNC_DEF "${FUNC_DEF}")
+  file(APPEND ${X264_DEF_FILE} "   ${FUNC_DEF}\r\n")
+  #message("++ ${_FUNC} -> ${FUNC_DEF}")
+  endforeach()
+  
+  foreach(_DATUM IN LISTS X264_API_DATA)
+  string(REGEX REPLACE ".*(x264[a-zA-Z0-9_]*)[^a-zA-Z0-9_]?.*" "\\1" _DATUM_DEF ${_DATUM})
+  file(APPEND ${X264_DEF_FILE} "   ${_DATUM_DEF} DATA\r\n")
+  #message("++ ${_DATUM} -> ${_DATUM_DEF}")
+  endforeach()
+  
+  if(${ARCH_X86_64} EQUAL 1)
+  add_custom_command(TARGET x264-shared POST_BUILD
+	COMMAND lib /machine:x64;-def:${X264_DEF_FILE};-OUT:${X264_IMPLIB_FILE}
+	VERBATIM)
+	else()
+	add_custom_command(TARGET x264-shared POST_BUILD
+	COMMAND lib /machine:x86;-def:${X264_DEF_FILE};-OUT:${X264_IMPLIB_FILE}
+	VERBATIM)
+	endif()
+    
+  
+	install(FILES ${X264_DEF_FILE} ${X264_IMPLIB_FILE}
+			DESTINATION bin)
+	endif(WIN32)		
+  
+  INSTALL(TARGETS x264-shared 
     EXPORT x264-targets 
     LIBRARY DESTINATION lib 
     RUNTIME DESTINATION bin
@@ -719,7 +765,7 @@ if(${WITH_STATIC})
   add_library(x264-static STATIC $<TARGET_OBJECTS:x264-objects> ${ASMOBJS} ${ASMSRCS})
   endif()
   #target_link_libraries(x264-objects x264-asm)
-  set_target_properties(x264-static PROPERTIES OUTPUT_NAME x264)
+  set_target_properties(x264-static PROPERTIES OUTPUT_NAME x264-static)
   set_target_properties(x264-static PROPERTIES PUBLIC_HEADER "${X264_SOURCE_ROOT}/x264.h;${PROJECT_BINARY_DIR}/x264_config.h")
   
   if(WITH_THREADS)
@@ -730,7 +776,7 @@ if(${WITH_STATIC})
     EXPORT x264-targets 
     ARCHIVE DESTINATION lib
     PUBLIC_HEADER DESTINATION include)
-
+ 
 endif()
 
 
@@ -739,9 +785,14 @@ if(${WITH_CLI})
   #add_executable(x264 $<TARGET_OBJECTS:x264-appobjects>)
   add_executable(x264 ${X264_SRCCLI})
   if(TARGET x264-static)
+	message(STATUS "Linking x264 app with x264-static")
     target_link_libraries(x264 x264-static)
   else()
     if(TARGET x264-shared)
+	  message(STATUS "Linking x264 app with x264-shared")
+	  if(MSVC)
+	  set_property(TARGET x264 APPEND PROPERTY COMPILE_FLAGS -DX264_API_IMPORTS=1)
+	  endif()
       target_link_libraries(x264 x264-shared)
     else()
       message(FATAL_ERROR "building the CLI app only is not supported yet")
@@ -756,6 +807,10 @@ if(${WITH_CLI})
     target_link_libraries(x264 Threads::Threads)
   endif()
 
+  #if(MSVC AND WITH_SHARED)
+  #set(CMAKE_EXE_LINKER_FLAGS
+  #    "${CMAKE_EXE_LINKER_FLAGS} /DEF:${X264_DEF_FILE} /NODEFAULTLIB")
+	#endif()
   INSTALL(TARGETS x264
     EXPORT x264-targets 
     RUNTIME DESTINATION bin)
