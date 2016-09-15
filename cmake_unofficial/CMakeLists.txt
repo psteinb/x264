@@ -18,11 +18,11 @@ option(WITH_GPL_FEATURES "build with gpl-only features on" ON)
 option(WITH_THREADS "build with multithreading on" ON)
 
 # if(MSVC)
-  
-  # option(WITH_WIN32THREADS "build with windows32 multithreading on" ON)
+
+# option(WITH_WIN32THREADS "build with windows32 multithreading on" ON)
 # else()
-  # option(WITH_THREADS "build with POSIX multithreading on" ON)
-  # option(WITH_WIN32THREADS "build with windows32 multithreading on" OFF)
+# option(WITH_THREADS "build with POSIX multithreading on" ON)
+# option(WITH_WIN32THREADS "build with windows32 multithreading on" OFF)
 # endif()
 
 option(WITH_INTERLACED "build with interlaced encoding support" ON)
@@ -41,7 +41,7 @@ option(WITH_LTO "link-time optimization (only gcc/UNIX supported) (currently uns
 option(WITH_PROFILING "enabled profiling (only gcc/UNIX supported) (currently unsupported in cmake)" OFF)
 option(WITH_STATIC_RT "link to runtime statically" OFF)
 if(WIN32)
-	set(WITH_STATIC_RT ON)
+  set(WITH_STATIC_RT ON)
 endif()
 
 ################################ GLOBAL DEFINES ################################
@@ -148,9 +148,9 @@ endif()
 if(HAS_MMAN_H)
   check_symbol_exists(MAP_PRIVATE sys/mman.h HAS_MMAP)
   check_symbol_exists(MADV_HUGEPAGE sys/mman.h HAS_THP)
-  else()
-    set(HAS_THP 0)
-    set(HAS_MMAP 0)
+else()
+  set(HAS_THP 0)
+  set(HAS_MMAP 0)
 endif()
 
 if(HAS_SCHED_H)
@@ -170,35 +170,35 @@ else(HAS_X86_INLINE_ASM)
 endif(HAS_X86_INLINE_ASM)
 
 if(MSVC AND ${HAS_X86_INLINE_ASM} EQUAL 0)
-check_C_source_compiles("void main(){__asm pabsw xmm0, xmm0;}" HAS_X86_INLINE_ASM)
-if(HAS_X86_INLINE_ASM)
-  check_C_source_compiles("void main(){__asm pabsw xmm0, xmm0;}" HAS_MMX)
-else(HAS_X86_INLINE_ASM)
-  set(HAS_X86_INLINE_ASM 0)
-  set(HAS_MMX 0)
-endif(HAS_X86_INLINE_ASM)
+  check_C_source_compiles("void main(){__asm pabsw xmm0, xmm0;}" HAS_X86_INLINE_ASM)
+  if(HAS_X86_INLINE_ASM)
+    check_C_source_compiles("void main(){__asm pabsw xmm0, xmm0;}" HAS_MMX)
+  else(HAS_X86_INLINE_ASM)
+    set(HAS_X86_INLINE_ASM 0)
+    set(HAS_MMX 0)
+  endif(HAS_X86_INLINE_ASM)
 
 
-if("${HAS_X86_INLINE_ASM}" EQUAL 0)
+  if("${HAS_X86_INLINE_ASM}" EQUAL 0)
 
-if(HAS_MSVC_OPT_INTRINSICS)
-	set(CMAKE_REQUIRED_FLAGS "/Oi")
-endif()
-check_C_source_compiles("#include <emmintrin.h>\nint main(void){int v = 0;__m128i vreg = {0};vreg = _mm_set1_epi32(v);return v;}" HAS_MMX_FROM_INTRINSICS)
-if(NOT ${HAS_MMX_FROM_INTRINSICS})
-set(HAS_MMX 0)
-else()
-set(HAS_MMX 1)
-endif()
+    if(HAS_MSVC_OPT_INTRINSICS)
+      set(CMAKE_REQUIRED_FLAGS "/Oi")
+    endif()
+    check_C_source_compiles("#include <emmintrin.h>\nint main(void){int v = 0;__m128i vreg = {0};vreg = _mm_set1_epi32(v);return v;}" HAS_MMX_FROM_INTRINSICS)
+    if(NOT ${HAS_MMX_FROM_INTRINSICS})
+      set(HAS_MMX 0)
+    else()
+      set(HAS_MMX 1)
+    endif()
 
-endif()
+  endif()
 endif()
 
 
 
 check_C_source_compiles("#include <stdint.h>\nvoid main(){uint32_t test_vec __attribute__ ((vector_size (16))) = {0,1,2,3};}" HAS_VECTOREXT)
 if(NOT HAS_VECTOREXT)
-set(HAS_VECTOREXT 0)
+  set(HAS_VECTOREXT 0)
 endif()
 
 check_symbol_exists(fseeko stdio.h HAS_FSEEKO)
@@ -248,9 +248,9 @@ endif()
 
 
 if( CMAKE_SIZEOF_VOID_P MATCHES 8 )
-    set(CPU_ARCH "x86_64")
+  set(CPU_ARCH "x86_64")
 else()
-    set(CPU_ARCH "x86")
+  set(CPU_ARCH "x86")
 endif()
 
 if(("${CMAKE_SYSTEM_PROCESSOR}" MATCHES ".86_64" OR "${CMAKE_SYSTEM_PROCESSOR}" MATCHES "AMD64") AND ("${CPU_ARCH}" MATCHES ".*64$"))
@@ -270,9 +270,9 @@ else()
 endif()
 
 if(WIN32)
-set(SYS_WINDOWS 1)
+  set(SYS_WINDOWS 1)
 else()
-set(SYS_WINDOWS 0)
+  set(SYS_WINDOWS 0)
 endif()
 
 set(EXTRA_CFLAGS_LIST "")
@@ -325,76 +325,76 @@ if(UNIX)
 endif(UNIX)
 
 if(MSVC)
-    # disable Microsofts suggestions for proprietary secure APIs
-    add_definitions(/D_CRT_SECURE_NO_WARNINGS)
-	
-	if(HAS_MSVC_ALWAYSINLINE)
-	list(APPEND EXTRA_CFLAGS_LIST /Ob2)
-	endif()
-	
-	if(HAS_MSVC_FULLWARNINGS)
-	list(APPEND EXTRA_CFLAGS_LIST /W4)
-	endif()
-	
-	if(HAS_MSVC_MULTITHREADEDBUILD)
-	list(APPEND EXTRA_CFLAGS_LIST /MP)
-	endif()
-	
-	if(HAS_MSVC_OMIT_FRAMEPOINTER)
-	list(APPEND EXTRA_CFLAGS_LIST /Oy)
-	endif()
-	
-	if(HAS_MSVC_FASTCODE)
-	if(${CMAKE_BUILD_TYPE} MATCHES "Rel.*")
-	list(APPEND EXTRA_CFLAGS_LIST /Ox)
-	endif()
-	endif()
-		
-	#according to https://msdn.microsoft.com/en-us/library/aa290049(v=vs.71).aspx
-	if(${ARCH_X86_64} EQUAL 1)
-	set(X264_STACK_ALIGNMENT 16)
-	else()
-	set(X264_STACK_ALIGNMENT 4)
-	endif()
-	
-	if(HAS_MSVC_STRUCT_STACKALIGN)
-	list(APPEND EXTRA_CFLAGS_LIST /Zp${X264_STACK_ALIGNMENT})
-	endif()
-	
-	if(HAS_MSVC_FASTMATH)
-	if(${CMAKE_BUILD_TYPE} MATCHES "Rel.*")
-	list(APPEND EXTRA_CFLAGS_LIST /fp:fast)
-	endif()
-	endif()
-	
-	if(HAS_MSVC_FULLDEBUG)
-	if(${CMAKE_BUILD_TYPE} MATCHES "(Debug|Dbg)")
-	list(APPEND EXTRA_CFLAGS_LIST /Zi)
-	endif()
-	endif()
-	
-	if(${CMAKE_BUILD_TYPE} MATCHES "Debug")
-	if(HAS_MSVC_NOOPT)
-	list(APPEND EXTRA_CFLAGS_LIST /Od)
-	endif()
-	endif()
-	# if(${CPU_ARCH} MATCHES "x86_64")
-		# list(APPEND EXTRA_LDFLAGS_LIST /LARGEADDRESSAWARE)
-		# list(APPEND EXTRA_LDFLAGS_LIST /LARGEADDRESSAWARE)
-	# endif()
-	
-	if(HAS_BUFFER_SECCHECK)
-		add_definitions(-GS-)
-	endif()
-	
-	
-	
-	
-	# if(${CMAKE_BUILD_TYPE} MATCHES "Rel.*")
-        # list(APPEND EXTRA_CFLAGS_LIST -O3)
-	# else()
-		# list(APPEND EXTRA_CFLAGS_LIST -g)
-    # endif()
+  # disable Microsofts suggestions for proprietary secure APIs
+  add_definitions(/D_CRT_SECURE_NO_WARNINGS)
+  
+  if(HAS_MSVC_ALWAYSINLINE)
+    list(APPEND EXTRA_CFLAGS_LIST /Ob2)
+  endif()
+  
+  if(HAS_MSVC_FULLWARNINGS)
+    list(APPEND EXTRA_CFLAGS_LIST /W4)
+  endif()
+  
+  if(HAS_MSVC_MULTITHREADEDBUILD)
+    list(APPEND EXTRA_CFLAGS_LIST /MP)
+  endif()
+  
+  if(HAS_MSVC_OMIT_FRAMEPOINTER)
+    list(APPEND EXTRA_CFLAGS_LIST /Oy)
+  endif()
+  
+  if(HAS_MSVC_FASTCODE)
+    if(${CMAKE_BUILD_TYPE} MATCHES "Rel.*")
+      list(APPEND EXTRA_CFLAGS_LIST /Ox)
+    endif()
+  endif()
+  
+  #according to https://msdn.microsoft.com/en-us/library/aa290049(v=vs.71).aspx
+  if(${ARCH_X86_64} EQUAL 1)
+    set(X264_STACK_ALIGNMENT 16)
+  else()
+    set(X264_STACK_ALIGNMENT 4)
+  endif()
+  
+  if(HAS_MSVC_STRUCT_STACKALIGN)
+    list(APPEND EXTRA_CFLAGS_LIST /Zp${X264_STACK_ALIGNMENT})
+  endif()
+  
+  if(HAS_MSVC_FASTMATH)
+    if(${CMAKE_BUILD_TYPE} MATCHES "Rel.*")
+      list(APPEND EXTRA_CFLAGS_LIST /fp:fast)
+    endif()
+  endif()
+  
+  if(HAS_MSVC_FULLDEBUG)
+    if(${CMAKE_BUILD_TYPE} MATCHES "(Debug|Dbg)")
+      list(APPEND EXTRA_CFLAGS_LIST /Zi)
+    endif()
+  endif()
+  
+  if(${CMAKE_BUILD_TYPE} MATCHES "Debug")
+    if(HAS_MSVC_NOOPT)
+      list(APPEND EXTRA_CFLAGS_LIST /Od)
+    endif()
+  endif()
+  # if(${CPU_ARCH} MATCHES "x86_64")
+  # list(APPEND EXTRA_LDFLAGS_LIST /LARGEADDRESSAWARE)
+  # list(APPEND EXTRA_LDFLAGS_LIST /LARGEADDRESSAWARE)
+  # endif()
+  
+  if(HAS_BUFFER_SECCHECK)
+    add_definitions(-GS-)
+  endif()
+  
+  
+  
+  
+  # if(${CMAKE_BUILD_TYPE} MATCHES "Rel.*")
+  # list(APPEND EXTRA_CFLAGS_LIST -O3)
+  # else()
+  # list(APPEND EXTRA_CFLAGS_LIST -g)
+  # endif()
   
 endif()
 
@@ -415,16 +415,16 @@ if(${CMAKE_BUILD_TYPE} MATCHES "Debug")
 endif()
 
 if(WIN32 OR MSVC)
-set(CompilerFlags CMAKE_C_FLAGS_DEBUG CMAKE_C_FLAGS_RELEASE)
-foreach(CompilerFlag ${CompilerFlags})
-	string(REPLACE "/MD" "/MT" ${CompilerFlag} "${${CompilerFlag}}")
-endforeach()
+  set(CompilerFlags CMAKE_C_FLAGS_DEBUG CMAKE_C_FLAGS_RELEASE)
+  foreach(CompilerFlag ${CompilerFlags})
+    string(REPLACE "/MD" "/MT" ${CompilerFlag} "${${CompilerFlag}}")
+  endforeach()
 endif()
 
 get_filename_component(X264_SOURCE_ROOT ${PROJECT_SOURCE_DIR}/.. ABSOLUTE)
 include_directories(${X264_SOURCE_ROOT})
 if(NOT HAS_GETOPT_H)
-include_directories(${X264_SOURCE_ROOT}/extras)
+  include_directories(${X264_SOURCE_ROOT}/extras)
 endif()
 
 if(CMAKE_C_COMPILER_ID MATCHES "(GNU|GCC|.*Clang)")
@@ -437,49 +437,49 @@ set(HAVE_POSIXTHREAD 0)
 set(HAVE_THREAD 0)
 set(HAVE_BEOSTHREAD 0)
 set(HAVE_WIN32THREAD 0)
-      
+
 if(WITH_THREADS)
   find_package(Threads REQUIRED)
   if(THREADS_FOUND)
     set(HAVE_THREAD 1)
     set(HAVE_POSIXTHREAD ${CMAKE_USE_PTHREADS_INIT})
     set(HAVE_WIN32THREAD ${CMAKE_USE_WIN32_THREADS_INIT})
-	if(HAVE_POSIXTHREAD)
-	message(STATUS "threading library found: pthreads")
-	endif()
-	
-	if(HAVE_WIN32THREAD)
-	message(STATUS "threading library found: win32threads")
-	endif()
-	
+    if(HAVE_POSIXTHREAD)
+      message(STATUS "threading library found: pthreads")
+    endif()
+    
+    if(HAVE_WIN32THREAD)
+      message(STATUS "threading library found: win32threads")
+    endif()
+    
   else(THREADS_FOUND)
-	message(STATUS "threading library NOT found")
+    message(STATUS "threading library NOT found")
   endif(THREADS_FOUND)
 endif()
 
 if(WITH_AVS)
-	if(WIN32)
-		if(HAS_WINDOWS_H)
-			set(HAS_AVS 1)
-			set(USE_AVISYNTH 1)
-		else()
-			set(HAS_AVS 0)
-		endif()
-    else(WIN32)
-		if(HAS_DLFCN_H)
-			set(HAS_AVS 1)
-			set(USE_AVXSYNTH 1)
-		else()
-			set(HAS_AVS 0)
-		endif()
-	endif(WIN32)
+  if(WIN32)
+    if(HAS_WINDOWS_H)
+      set(HAS_AVS 1)
+      set(USE_AVISYNTH 1)
+    else()
+      set(HAS_AVS 0)
+    endif()
+  else(WIN32)
+    if(HAS_DLFCN_H)
+      set(HAS_AVS 1)
+      set(USE_AVXSYNTH 1)
+    else()
+      set(HAS_AVS 0)
+    endif()
+  endif(WIN32)
 endif()
 
 configure_file(${PROJECT_SOURCE_DIR}/config.h.in ${PROJECT_BINARY_DIR}/config.h)
 configure_file(${PROJECT_SOURCE_DIR}/x264_config.h.in ${PROJECT_BINARY_DIR}/x264_config.h)
 include_directories(${PROJECT_BINARY_DIR})
 if(EXISTS ${PROJECT_BINARY_DIR}/config.h)
-add_definitions(-DHAVE_CONFIG_H=1)
+  add_definitions(-DHAVE_CONFIG_H=1)
 endif()
 ################################ COLLECT C SOURCES ################################
 
@@ -494,7 +494,7 @@ endif()
 
 
 if(HAS_AVS)
-list(APPEND X264_SRCCLI input/avs.c)
+  list(APPEND X264_SRCCLI input/avs.c)
 endif()
 
 if(WITH_FFMS)
@@ -566,10 +566,10 @@ endif()
 
 ################################ COLLECT ASM APP ################################
 if(MSVC)
-	set(YASM_SEARCH_NAMES yasm yasm${CMAKE_EXECUTABLE_SUFFIX})
-	#set(YASM_SEARCH_NAMES vsyasm vsyasm${CMAKE_EXECUTABLE_SUFFIX})
+  set(YASM_SEARCH_NAMES yasm yasm${CMAKE_EXECUTABLE_SUFFIX})
+  #set(YASM_SEARCH_NAMES vsyasm vsyasm${CMAKE_EXECUTABLE_SUFFIX})
 else()	
-	set(YASM_SEARCH_NAMES yasm yasm${CMAKE_EXECUTABLE_SUFFIX})
+  set(YASM_SEARCH_NAMES yasm yasm${CMAKE_EXECUTABLE_SUFFIX})
 endif()	
 
 find_program(YASM_APP NAMES ${YASM_SEARCH_NAMES} HINTS ${YASM_ROOT} PATHS ${YASM_ROOT} PATH_SUFFIXES bin NO_DEFAULT_PATH)
@@ -585,7 +585,7 @@ set(ASM_FLAG_LIST -I${X264_SOURCE_ROOT} -I${X264_SOURCE_ROOT}/common/x86/ -Worph
 if(${CPU_ARCH} STREQUAL "x86_64")
   list(APPEND ASM_FLAG_LIST -DARCH_X86_64=1)
 endif()
- 
+
 if(WITH_PIC)
   list(APPEND ASM_FLAG_LIST -DPIC)
   set(CMAKE_POSITION_INDEPENDENT_CODE True)
@@ -631,49 +631,49 @@ source_group(ASM FILES ${ASMSRC})
 add_library(x264-asm OBJECT ${ASMSRC})
 #on Windows we need to call yasm manually :(
 if(MSVC)
-if( CMAKE_SIZEOF_VOID_P MATCHES 8 )
+  if( CMAKE_SIZEOF_VOID_P MATCHES 8 )
     list(APPEND ASM_FLAG_LIST -DARCH_X86_64=1)
     if(APPLE)
-        list(APPEND ASM_FLAG_LIST -f macho64 -m amd64 -DPREFIX)
+      list(APPEND ASM_FLAG_LIST -f macho64 -m amd64 -DPREFIX)
     elseif(UNIX AND NOT CYGWIN)
-        list(APPEND ASM_FLAG_LIST -f elf64 -m amd64)
+      list(APPEND ASM_FLAG_LIST -f elf64 -m amd64)
     else()
-        list(APPEND ASM_FLAG_LIST -f win64 -m amd64)
+      list(APPEND ASM_FLAG_LIST -f win64 -m amd64)
     endif()
-else()
+  else()
     list(APPEND ASM_FLAG_LIST -DARCH_X86_64=0)
     if(APPLE)
-        list(APPEND ASM_FLAG_LIST -f macho -DPREFIX)
+      list(APPEND ASM_FLAG_LIST -f macho -DPREFIX)
     elseif(UNIX AND NOT CYGWIN)
-        list(APPEND ASM_FLAG_LIST -f elf32)
+      list(APPEND ASM_FLAG_LIST -f elf32)
     else()
-        list(APPEND ASM_FLAG_LIST -f win32 -DPREFIX)
+      list(APPEND ASM_FLAG_LIST -f win32 -DPREFIX)
     endif()
-endif()
+  endif()
 
 
-message(STATUS "using asm flags    : ${YASM_APP} ${ASM_FLAG_LIST} foo.asm -o foo.asm.obj")
-foreach(_SRC IN LISTS ASMSRC)
-get_filename_component(_SRC_NAMESTUB ${_SRC} NAME_WE)
-get_filename_component(_SRC_EXT ${_SRC} EXT)
-set(_OBJ ${PROJECT_BINARY_DIR}/${_SRC_NAMESTUB}.obj)
+  message(STATUS "using asm flags    : ${YASM_APP} ${ASM_FLAG_LIST} foo.asm -o foo.asm.obj")
+  foreach(_SRC IN LISTS ASMSRC)
+    get_filename_component(_SRC_NAMESTUB ${_SRC} NAME_WE)
+    get_filename_component(_SRC_EXT ${_SRC} EXT)
+    set(_OBJ ${PROJECT_BINARY_DIR}/${_SRC_NAMESTUB}.obj)
 
-            list(APPEND ASMOBJS ${_OBJ})
-            add_custom_command(
-                OUTPUT ${_OBJ}
-                COMMAND ${YASM_APP} ARGS ${ASM_FLAG_LIST} ${_SRC} -o ${_OBJ}
-                DEPENDS ${_SRC})
-				
-endforeach()
+    list(APPEND ASMOBJS ${_OBJ})
+    add_custom_command(
+      OUTPUT ${_OBJ}
+      COMMAND ${YASM_APP} ARGS ${ASM_FLAG_LIST} ${_SRC} -o ${_OBJ}
+      DEPENDS ${_SRC})
+    
+  endforeach()
 endif()
 
 
 if(${WITH_SHARED})
-	if(NOT MSVC)
-		add_library(x264-shared SHARED $<TARGET_OBJECTS:x264-objects> $<TARGET_OBJECTS:x264-asm>)
-	else()
-		add_library(x264-shared SHARED $<TARGET_OBJECTS:x264-objects> ${ASMOBJS} ${ASMSRCS})
-	endif()
+  if(NOT MSVC)
+    add_library(x264-shared SHARED $<TARGET_OBJECTS:x264-objects> $<TARGET_OBJECTS:x264-asm>)
+  else()
+    add_library(x264-shared SHARED $<TARGET_OBJECTS:x264-objects> ${ASMOBJS} ${ASMSRCS})
+  endif()
   
   set_target_properties(x264-shared PROPERTIES OUTPUT_NAME x264)
   set_target_properties(x264-shared PROPERTIES PUBLIC_HEADER "${X264_SOURCE_ROOT}/x264.h;${PROJECT_BINARY_DIR}/x264_config.h")
@@ -699,50 +699,50 @@ if(${WITH_SHARED})
   endif()
 
   if(WIN32)
-  get_target_property(SHARED_LIB_NAME x264-shared OUTPUT_NAME)
-  set(X264_DEF_FILE ${PROJECT_BINARY_DIR}/${CMAKE_BUILD_TYPE}/${SHARED_LIB_NAME}.def)
-  set(X264_IMPLIB_FILE ${PROJECT_BINARY_DIR}/${CMAKE_BUILD_TYPE}/${SHARED_LIB_NAME}.lib)
-  
-  message("++ creating ${X264_DEF_FILE} ${X264_IMPLIB_FILE}")
-  
-  file(STRINGS ${X264_SOURCE_ROOT}/x264.h X264_API_FUNCTIONS REGEX "^(int|void|x264_t).*x264")
-  file(STRINGS ${X264_SOURCE_ROOT}/x264.h X264_API_DATA REGEX "extern.*x264")
-  
-  if(NOT IS_DIRECTORY ${PROJECT_BINARY_DIR}/${CMAKE_BUILD_TYPE})
-  file(MAKE_DIRECTORY ${PROJECT_BINARY_DIR}/${CMAKE_BUILD_TYPE})
-  endif()
+    get_target_property(SHARED_LIB_NAME x264-shared OUTPUT_NAME)
+    set(X264_DEF_FILE ${PROJECT_BINARY_DIR}/${CMAKE_BUILD_TYPE}/${SHARED_LIB_NAME}.def)
+    set(X264_IMPLIB_FILE ${PROJECT_BINARY_DIR}/${CMAKE_BUILD_TYPE}/${SHARED_LIB_NAME}.lib)
+    
+    message("++ creating ${X264_DEF_FILE} ${X264_IMPLIB_FILE}")
+    
+    file(STRINGS ${X264_SOURCE_ROOT}/x264.h X264_API_FUNCTIONS REGEX "^(int|void|x264_t).*x264")
+    file(STRINGS ${X264_SOURCE_ROOT}/x264.h X264_API_DATA REGEX "extern.*x264")
+    
+    if(NOT IS_DIRECTORY ${PROJECT_BINARY_DIR}/${CMAKE_BUILD_TYPE})
+      file(MAKE_DIRECTORY ${PROJECT_BINARY_DIR}/${CMAKE_BUILD_TYPE})
+    endif()
 
-  
-  file(WRITE ${X264_DEF_FILE} "LIBRARY x264\r\n")
-  file(APPEND ${X264_DEF_FILE} "EXPORTS\r\n")
-  
-  foreach(_FUNC IN LISTS X264_API_FUNCTIONS)
-  string(REGEX REPLACE ".*(x264.*)\\(.*" "\\1" FUNC_DEF "${_FUNC}")
-  string(REGEX REPLACE "open" "open_${API_VERSION}" FUNC_DEF "${FUNC_DEF}")
-  file(APPEND ${X264_DEF_FILE} "   ${FUNC_DEF}\r\n")
-  #message("++ ${_FUNC} -> ${FUNC_DEF}")
-  endforeach()
-  
-  foreach(_DATUM IN LISTS X264_API_DATA)
-  string(REGEX REPLACE ".*(x264[a-zA-Z0-9_]*)[^a-zA-Z0-9_]?.*" "\\1" _DATUM_DEF ${_DATUM})
-  file(APPEND ${X264_DEF_FILE} "   ${_DATUM_DEF} DATA\r\n")
-  #message("++ ${_DATUM} -> ${_DATUM_DEF}")
-  endforeach()
-  
-  if(${ARCH_X86_64} EQUAL 1)
-  add_custom_command(TARGET x264-shared POST_BUILD
+    
+    file(WRITE ${X264_DEF_FILE} "LIBRARY x264\r\n")
+    file(APPEND ${X264_DEF_FILE} "EXPORTS\r\n")
+    
+    foreach(_FUNC IN LISTS X264_API_FUNCTIONS)
+      string(REGEX REPLACE ".*(x264.*)\\(.*" "\\1" FUNC_DEF "${_FUNC}")
+      string(REGEX REPLACE "open" "open_${API_VERSION}" FUNC_DEF "${FUNC_DEF}")
+      file(APPEND ${X264_DEF_FILE} "   ${FUNC_DEF}\r\n")
+      #message("++ ${_FUNC} -> ${FUNC_DEF}")
+    endforeach()
+    
+    foreach(_DATUM IN LISTS X264_API_DATA)
+      string(REGEX REPLACE ".*(x264[a-zA-Z0-9_]*)[^a-zA-Z0-9_]?.*" "\\1" _DATUM_DEF ${_DATUM})
+      file(APPEND ${X264_DEF_FILE} "   ${_DATUM_DEF} DATA\r\n")
+      #message("++ ${_DATUM} -> ${_DATUM_DEF}")
+    endforeach()
+    
+    if(${ARCH_X86_64} EQUAL 1)
+      add_custom_command(TARGET x264-shared POST_BUILD
 	COMMAND lib /machine:x64;-def:${X264_DEF_FILE};-OUT:${X264_IMPLIB_FILE}
 	VERBATIM)
-	else()
-	add_custom_command(TARGET x264-shared POST_BUILD
+    else()
+      add_custom_command(TARGET x264-shared POST_BUILD
 	COMMAND lib /machine:x86;-def:${X264_DEF_FILE};-OUT:${X264_IMPLIB_FILE}
 	VERBATIM)
-	endif()
+    endif()
     
-  
-	install(FILES ${X264_DEF_FILE} ${X264_IMPLIB_FILE}
-			DESTINATION bin)
-	endif(WIN32)		
+    
+    install(FILES ${X264_DEF_FILE} ${X264_IMPLIB_FILE}
+      DESTINATION bin)
+  endif(WIN32)		
   
   INSTALL(TARGETS x264-shared 
     EXPORT x264-targets 
@@ -751,7 +751,7 @@ if(${WITH_SHARED})
     PUBLIC_HEADER DESTINATION include)
 
 endif()
-  
+
 if(${WITH_STATIC})
 
   find_program(GCC_AR_APP gcc-ar)
@@ -760,9 +760,9 @@ if(${WITH_STATIC})
   endif()
 
   if(NOT MSVC)
-  add_library(x264-static STATIC $<TARGET_OBJECTS:x264-objects> $<TARGET_OBJECTS:x264-asm>)
+    add_library(x264-static STATIC $<TARGET_OBJECTS:x264-objects> $<TARGET_OBJECTS:x264-asm>)
   else()
-  add_library(x264-static STATIC $<TARGET_OBJECTS:x264-objects> ${ASMOBJS} ${ASMSRCS})
+    add_library(x264-static STATIC $<TARGET_OBJECTS:x264-objects> ${ASMOBJS} ${ASMSRCS})
   endif()
   #target_link_libraries(x264-objects x264-asm)
   set_target_properties(x264-static PROPERTIES OUTPUT_NAME x264-static)
@@ -776,18 +776,18 @@ if(${WITH_STATIC})
     EXPORT x264-targets 
     ARCHIVE DESTINATION lib
     PUBLIC_HEADER DESTINATION include)
- 
+  
 endif()
 
 
 if(${WITH_CLI})
   
   if(NOT MSVC)
-  add_executable(x264 ${X264_SRCCLI} $<TARGET_OBJECTS:x264-objects> $<TARGET_OBJECTS:x264-asm>)
+    add_executable(x264 ${X264_SRCCLI} $<TARGET_OBJECTS:x264-objects> $<TARGET_OBJECTS:x264-asm>)
   else()
-  add_executable(x264 ${X264_SRCCLI} $<TARGET_OBJECTS:x264-objects> ${ASMOBJS} ${ASMSRCS})
+    add_executable(x264 ${X264_SRCCLI} $<TARGET_OBJECTS:x264-objects> ${ASMOBJS} ${ASMSRCS})
   endif()
-    
+  
   if(UNIX)
     target_link_libraries(x264 dl m)
   endif()
@@ -796,10 +796,6 @@ if(${WITH_CLI})
     target_link_libraries(x264 Threads::Threads)
   endif()
 
-  #if(MSVC AND WITH_SHARED)
-  #set(CMAKE_EXE_LINKER_FLAGS
-  #    "${CMAKE_EXE_LINKER_FLAGS} /DEF:${X264_DEF_FILE} /NODEFAULTLIB")
-	#endif()
   INSTALL(TARGETS x264
     EXPORT x264-targets 
     RUNTIME DESTINATION bin)

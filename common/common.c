@@ -1218,9 +1218,9 @@ void *x264_malloc( int i_size )
 #undef HUGE_PAGE_THRESHOLD
 #endif
 #if HAVE_MEMALIGN
-        align_buf = memalign( NATIVE_ALIGN, i_size );
+      align_buf = memalign( NATIVE_ALIGN, i_size );
 #else
-	    align_buf = _aligned_malloc( i_size , NATIVE_ALIGN);
+    align_buf = _aligned_malloc( i_size , NATIVE_ALIGN);
 #endif
 #else
     uint8_t *buf = malloc( i_size + (NATIVE_ALIGN-1) + sizeof(void **) );
@@ -1247,7 +1247,7 @@ void x264_free( void *p )
 #if HAVE_MEMALIGN 
         free( p );
 #else
-		_aligned_free(p);
+	_aligned_free(p);
 #endif
 #else
         free( *( ( ( void **) p ) - 1 ) );
