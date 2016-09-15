@@ -705,7 +705,7 @@ if(${WITH_SHARED})
   
   message("++ creating ${X264_DEF_FILE} ${X264_IMPLIB_FILE}")
   
-  file(STRINGS ${X264_SOURCE_ROOT}/x264.h X264_API_FUNCTIONS REGEX "^X264_API_EXPORT.*(int|void|x264_t).*x264")
+  file(STRINGS ${X264_SOURCE_ROOT}/x264.h X264_API_FUNCTIONS REGEX "^(int|void|x264_t).*x264")
   file(STRINGS ${X264_SOURCE_ROOT}/x264.h X264_API_DATA REGEX "extern.*x264")
   
   if(NOT IS_DIRECTORY ${PROJECT_BINARY_DIR}/${CMAKE_BUILD_TYPE})
@@ -782,23 +782,12 @@ endif()
 
 if(${WITH_CLI})
   
-  #add_executable(x264 $<TARGET_OBJECTS:x264-appobjects>)
-  add_executable(x264 ${X264_SRCCLI})
-  if(TARGET x264-static)
-	message(STATUS "Linking x264 app with x264-static")
-    target_link_libraries(x264 x264-static)
+  if(NOT MSVC)
+  add_executable(x264 ${X264_SRCCLI} $<TARGET_OBJECTS:x264-objects> $<TARGET_OBJECTS:x264-asm>)
   else()
-    if(TARGET x264-shared)
-	  message(STATUS "Linking x264 app with x264-shared")
-	  if(MSVC)
-	  set_property(TARGET x264 APPEND PROPERTY COMPILE_FLAGS -DX264_API_IMPORTS=1)
-	  endif()
-      target_link_libraries(x264 x264-shared)
-    else()
-      message(FATAL_ERROR "building the CLI app only is not supported yet")
-    endif()
+  add_executable(x264 ${X264_SRCCLI} $<TARGET_OBJECTS:x264-objects> ${ASMOBJS} ${ASMSRCS})
   endif()
-
+    
   if(UNIX)
     target_link_libraries(x264 dl m)
   endif()

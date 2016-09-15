@@ -52,16 +52,11 @@ extern "C" {
  * will need to define X264_API_IMPORTS before including this header.
  * This clause does not apply to MinGW, similar development environments, or non
  * Windows platforms. */
- #ifdef _MSC_VER 
-	#ifdef X264_API_IMPORTS
-		#define X264_API __declspec(dllimport)
-		#define X264_API_EXPORT __declspec(dllimport)
-	#else
-		#define X264_API_EXPORT __declspec(dllexport)
-		#define X264_API __declspec(dllexport)
-	#endif
+#ifdef X264_API_IMPORTS
+#define X264_API __declspec(dllimport)
+#else
+#define X264_API
 #endif
-
 
 /* x264_t:
  *      opaque handler for encoder */
@@ -560,7 +555,7 @@ typedef struct x264_param_t
     void (*nalu_process) ( x264_t *h, x264_nal_t *nal, void *opaque );
 } x264_param_t;
 
-X264_API_EXPORT void x264_nal_encode( x264_t *h, uint8_t *dst, x264_nal_t *nal );
+void x264_nal_encode( x264_t *h, uint8_t *dst, x264_nal_t *nal );
 
 /****************************************************************************
  * H.264 level restriction information
@@ -592,7 +587,7 @@ X264_API extern const x264_level_t x264_levels[];
 
 /* x264_param_default:
  *      fill x264_param_t with default values and do CPU detection */
-X264_API_EXPORT void    x264_param_default( x264_param_t * );
+void    x264_param_default( x264_param_t * );
 
 /* x264_param_parse:
  *  set one parameter by name.
@@ -603,7 +598,7 @@ X264_API_EXPORT void    x264_param_default( x264_param_t * );
  *  value=NULL means "true" for boolean options, but is a BAD_VALUE for non-booleans. */
 #define X264_PARAM_BAD_NAME  (-1)
 #define X264_PARAM_BAD_VALUE (-2)
-X264_API_EXPORT int x264_param_parse( x264_param_t *, const char *name, const char *value );
+int x264_param_parse( x264_param_t *, const char *name, const char *value );
 
 /****************************************************************************
  * Advanced parameter handling functions
@@ -647,13 +642,13 @@ static const char * const x264_tune_names[] = { "film", "animation", "grain", "s
  *      film, animation, grain, stillimage, psnr, and ssim are psy tunings.
  *
  *      returns 0 on success, negative on failure (e.g. invalid preset/tune name). */
-X264_API_EXPORT int     x264_param_default_preset( x264_param_t *, const char *preset, const char *tune );
+int     x264_param_default_preset( x264_param_t *, const char *preset, const char *tune );
 
 /* x264_param_apply_fastfirstpass:
  *      If first-pass mode is set (rc.b_stat_read == 0, rc.b_stat_write == 1),
  *      modify the encoder settings to disable options generally not useful on
  *      the first pass. */
-X264_API_EXPORT void    x264_param_apply_fastfirstpass( x264_param_t * );
+void    x264_param_apply_fastfirstpass( x264_param_t * );
 
 /* x264_param_apply_profile:
  *      Applies the restrictions of the given profile.
@@ -668,7 +663,7 @@ static const char * const x264_profile_names[] = { "baseline", "main", "high", "
  *      decrease them.
  *
  *      returns 0 on success, negative on failure (e.g. invalid profile name). */
-X264_API_EXPORT int     x264_param_apply_profile( x264_param_t *, const char *profile );
+int     x264_param_apply_profile( x264_param_t *, const char *profile );
 
 /****************************************************************************
  * Picture structures and functions
@@ -847,17 +842,17 @@ typedef struct x264_picture_t
 /* x264_picture_init:
  *  initialize an x264_picture_t.  Needs to be done if the calling application
  *  allocates its own x264_picture_t as opposed to using x264_picture_alloc. */
-X264_API_EXPORT void x264_picture_init( x264_picture_t *pic );
+void x264_picture_init( x264_picture_t *pic );
 
 /* x264_picture_alloc:
  *  alloc data for a picture. You must call x264_picture_clean on it.
  *  returns 0 on success, or -1 on malloc failure or invalid colorspace. */
-X264_API_EXPORT int x264_picture_alloc( x264_picture_t *pic, int i_csp, int i_width, int i_height );
+int x264_picture_alloc( x264_picture_t *pic, int i_csp, int i_width, int i_height );
 
 /* x264_picture_clean:
  *  free associated resource for a x264_picture_t allocated with
  *  x264_picture_alloc ONLY */
-X264_API_EXPORT void x264_picture_clean( x264_picture_t *pic );
+void x264_picture_clean( x264_picture_t *pic );
 
 /****************************************************************************
  * Encoder functions
@@ -872,7 +867,7 @@ X264_API_EXPORT void x264_picture_clean( x264_picture_t *pic );
 
 /* x264_encoder_open:
  *      create a new encoder handler, all parameters from x264_param_t are copied */
-X264_API_EXPORT x264_t *x264_encoder_open( x264_param_t * );
+x264_t *x264_encoder_open( x264_param_t * );
 
 /* x264_encoder_reconfig:
  *      various parameters from x264_param_t are copied.
@@ -887,7 +882,7 @@ X264_API_EXPORT x264_t *x264_encoder_open( x264_param_t * );
  *      more so than for other presets, many of the speed shortcuts used in ultrafast cannot be
  *      switched out of; using reconfig to switch between ultrafast and other presets is not
  *      recommended without a more fine-grained breakdown of parameters to take this into account. */
-X264_API_EXPORT int     x264_encoder_reconfig( x264_t *, x264_param_t * );
+int     x264_encoder_reconfig( x264_t *, x264_param_t * );
 /* x264_encoder_parameters:
  *      copies the current internal set of parameters to the pointer provided
  *      by the caller.  useful when the calling application needs to know
@@ -895,32 +890,32 @@ X264_API_EXPORT int     x264_encoder_reconfig( x264_t *, x264_param_t * );
  *      of the encoder after multiple x264_encoder_reconfig calls.
  *      note that the data accessible through pointers in the returned param struct
  *      (e.g. filenames) should not be modified by the calling application. */
-X264_API_EXPORT void    x264_encoder_parameters( x264_t *, x264_param_t * );
+void    x264_encoder_parameters( x264_t *, x264_param_t * );
 /* x264_encoder_headers:
  *      return the SPS and PPS that will be used for the whole stream.
  *      *pi_nal is the number of NAL units outputted in pp_nal.
  *      returns the number of bytes in the returned NALs.
  *      returns negative on error.
  *      the payloads of all output NALs are guaranteed to be sequential in memory. */
-X264_API_EXPORT int     x264_encoder_headers( x264_t *, x264_nal_t **pp_nal, int *pi_nal );
+int     x264_encoder_headers( x264_t *, x264_nal_t **pp_nal, int *pi_nal );
 /* x264_encoder_encode:
  *      encode one picture.
  *      *pi_nal is the number of NAL units outputted in pp_nal.
  *      returns the number of bytes in the returned NALs.
  *      returns negative on error and zero if no NAL units returned.
  *      the payloads of all output NALs are guaranteed to be sequential in memory. */
-X264_API_EXPORT int     x264_encoder_encode( x264_t *, x264_nal_t **pp_nal, int *pi_nal, x264_picture_t *pic_in, x264_picture_t *pic_out );
+int     x264_encoder_encode( x264_t *, x264_nal_t **pp_nal, int *pi_nal, x264_picture_t *pic_in, x264_picture_t *pic_out );
 /* x264_encoder_close:
  *      close an encoder handler */
-X264_API_EXPORT void    x264_encoder_close  ( x264_t * );
+void    x264_encoder_close  ( x264_t * );
 /* x264_encoder_delayed_frames:
  *      return the number of currently delayed (buffered) frames
  *      this should be used at the end of the stream, to know when you have all the encoded frames. */
-X264_API_EXPORT int     x264_encoder_delayed_frames( x264_t * );
+int     x264_encoder_delayed_frames( x264_t * );
 /* x264_encoder_maximum_delayed_frames( x264_t *h ):
  *      return the maximum number of delayed (buffered) frames that can occur with the current
  *      parameters. */
-X264_API_EXPORT int     x264_encoder_maximum_delayed_frames( x264_t *h );
+int     x264_encoder_maximum_delayed_frames( x264_t *h );
 /* x264_encoder_intra_refresh:
  *      If an intra refresh is not in progress, begin one with the next P-frame.
  *      If an intra refresh is in progress, begin one as soon as the current one finishes.
@@ -934,7 +929,7 @@ X264_API_EXPORT int     x264_encoder_maximum_delayed_frames( x264_t *h );
  *      behavior is undefined.
  *
  *      Should not be called during an x264_encoder_encode. */
-X264_API_EXPORT void    x264_encoder_intra_refresh( x264_t * );
+void    x264_encoder_intra_refresh( x264_t * );
 /* x264_encoder_invalidate_reference:
  *      An interactive error resilience tool, designed for use in a low-latency one-encoder-few-clients
  *      system.  When the client has packet loss or otherwise incorrectly decodes a frame, the encoder
@@ -957,7 +952,7 @@ X264_API_EXPORT void    x264_encoder_intra_refresh( x264_t * );
  *      Should not be called during an x264_encoder_encode, but multiple calls can be made simultaneously.
  *
  *      Returns 0 on success, negative on failure. */
-X264_API_EXPORT int x264_encoder_invalidate_reference( x264_t *, int64_t pts );
+int x264_encoder_invalidate_reference( x264_t *, int64_t pts );
 
 #ifdef __cplusplus
 }
