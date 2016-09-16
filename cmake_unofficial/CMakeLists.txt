@@ -2,7 +2,7 @@ CMAKE_MINIMUM_REQUIRED(VERSION 3.0)
 PROJECT(x264 C)
 
 if(NOT ("${CMAKE_SYSTEM_PROCESSOR}" MATCHES ".86_64" OR "${CMAKE_SYSTEM_PROCESSOR}" MATCHES ".86$" OR "${CMAKE_SYSTEM_PROCESSOR}" MATCHES "AMD64"))
-  message(FATAL_ERROR "${CMAKE_SYSTEM_PROCESSOR} currently not supported")
+  message(FATAL_ERROR "processor ${CMAKE_SYSTEM_PROCESSOR} currently not supported")
 endif()
 
 if(NOT CMAKE_BUILD_TYPE)
@@ -156,9 +156,12 @@ endif()
 if(HAS_SCHED_H)
   set(CMAKE_REQUIRED_FLAGS -D_GNU_SOURCE -Werror)
   check_C_source_compiles("#include <sched.h>\nvoid main(){cpu_set_t p_aff; return CPU_COUNT(&p_aff);}" HAS_CPU_COUNT)
-else()
+endif()
+
+if(NOT HAS_CPU_COUNT)
   set(HAS_CPU_COUNT 0)
 endif()
+
 
 
 check_C_source_compiles("void main(){__asm__(\"pabsw %xmm0, %xmm0\");}" HAS_X86_INLINE_ASM)
@@ -450,6 +453,19 @@ if(WITH_THREADS)
     
     if(HAVE_WIN32THREAD)
       message(STATUS "threading library found: win32threads")
+    endif()
+
+    if(HAVE_POSIXTHREAD AND HAVE_WIN32THREAD)
+      message(STATUS "win32threads and pthreads found!")
+      if(DEFINED CMAKE_SYSTEM_NAME AND ${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+	message(STATUS "detected building for Windows, unsetting pthreads")
+	unset(HAVE_POSIXTHREAD)
+      endif()
+
+      if(NOT DEFINED CMAKE_THREAD_PREFER_PTHREAD OR NOT ${CMAKE_THREAD_PREFER_PTHREAD})
+	message(STATUS "detected pthreads is not preferred, unsetting pthreads")
+	unset(HAVE_POSIXTHREAD)
+      endif()
     endif()
     
   else(THREADS_FOUND)
