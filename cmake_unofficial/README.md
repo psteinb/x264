@@ -1,20 +1,22 @@
-* x264 fork to add cmake support
+# x264 fork to add cmake support
 
-** goals
+## goals
 
 the goal of this fork is to add cmake support to x264. the provided functionality is not yet on par with the traditional configure based build. I thus encourage you to post issues on functionality that is buggy or missing to this repo's issue tracker. 
 
-** suported OS
+## suported OS
 
 Linux, Windows 7
+(more to come)
 
-* How to use
+# How to use
 
-** Invocation
+## Invocation
 
 Open a terminal (make sure your desired toolchain and cmake is available through the environment):
 ```
-$ cd repo
+$ git clone https://github.com/psteinb/x264
+$ cd x264
 $ cd cmake_unofficial
 $ cmake .
 ```
@@ -30,10 +32,10 @@ This will generate the project/Makefiles that you'll need tpo build x264. After 
 - Linux:
   ```
   $ make
-  $ make install
+  $ make install #if needed
   ```
   
-** Flags
+## Flags
 
 I am currently trying to put all flags that are available in the configure script into the cmake setup as best as I can. Here is an incomplete current list:
 
