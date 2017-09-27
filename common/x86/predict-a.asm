@@ -1,7 +1,7 @@
 ;*****************************************************************************
 ;* predict-a.asm: x86 intra prediction
 ;*****************************************************************************
-;* Copyright (C) 2005-2016 x264 project
+;* Copyright (C) 2005-2017 x264 project
 ;*
 ;* Authors: Loren Merritt <lorenm@u.washington.edu>
 ;*          Holger Lubitz <holger@lubitz.org>
@@ -468,7 +468,7 @@ PREDICT_4x4 w, wd, dq, qdq
 INIT_MMX mmx2
 PREDICT_4x4 b, bw, wd, dq
 INIT_MMX ssse3
-%define predict_4x4_vr_ssse3 predict_4x4_vr_ssse3_cache64
+%define predict_4x4_vr_ssse3 predict_4x4_vr_cache64_ssse3
 PREDICT_4x4 b, bw, wd, dq
 %endif
 
@@ -940,7 +940,7 @@ INIT_XMM sse2
 PREDICT_8x8_DDLR
 INIT_XMM ssse3
 PREDICT_8x8_DDLR
-INIT_XMM ssse3, cache64
+INIT_XMM cache64, ssse3
 PREDICT_8x8_DDLR
 %elif ARCH_X86_64 == 0
 INIT_MMX mmx2

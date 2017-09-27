@@ -1,7 +1,7 @@
 /*****************************************************************************
  * set: header writing
  *****************************************************************************
- * Copyright (C) 2003-2016 x264 project
+ * Copyright (C) 2003-2017 x264 project
  *
  * Authors: Laurent Aimar <fenrir@via.ecp.fr>
  *          Loren Merritt <lorenm@u.washington.edu>
@@ -137,7 +137,7 @@ void x264_sps_init( x264_sps_t *sps, int i_id, x264_param_t *param )
         sps->i_level_idc      = 11;
     }
     /* Intra profiles */
-    if( param->i_keyint_max == 1 && sps->i_profile_idc > PROFILE_HIGH )
+    if( param->i_keyint_max == 1 && sps->i_profile_idc >= PROFILE_HIGH )
         sps->b_constraint_set3 = 1;
 
     sps->vui.i_num_reorder_frames = param->i_bframe_pyramid ? 2 : param->i_bframe ? 1 : 0;
@@ -238,7 +238,7 @@ void x264_sps_init( x264_sps_t *sps, int i_id, x264_param_t *param )
 
     // NOTE: HRD related parts of the SPS are initialised in x264_ratecontrol_init_reconfigurable
 
-    sps->vui.b_bitstream_restriction = param->i_keyint_max > 1;
+    sps->vui.b_bitstream_restriction = !(sps->b_constraint_set3 && sps->i_profile_idc >= PROFILE_HIGH);
     if( sps->vui.b_bitstream_restriction )
     {
         sps->vui.b_motion_vectors_over_pic_boundaries = 1;
@@ -578,7 +578,7 @@ int x264_sei_version_write( x264_t *h, bs_t *s )
 
     memcpy( payload, uuid, 16 );
     sprintf( payload+16, "x264 - core %d%s - H.264/MPEG-4 AVC codec - "
-             "Copy%s 2003-2016 - http://www.videolan.org/x264.html - options: %s",
+             "Copy%s 2003-2017 - http://www.videolan.org/x264.html - options: %s",
              X264_BUILD, X264_VERSION, HAVE_GPL?"left":"right", opts );
     length = strlen(payload)+1;
 
@@ -671,7 +671,7 @@ void x264_sei_frame_packing_write( x264_t *h, bs_t *s )
     bs_write1( &q, h->param.i_frame_packing == 5 && !(h->fenc->i_frame&1) ); // current_frame_is_frame0_flag
     bs_write1( &q, 0 );                           // frame0_self_contained_flag
     bs_write1( &q, 0 );                           // frame1_self_contained_flag
-    if ( quincunx_sampling_flag == 0 && h->param.i_frame_packing != 5 )
+    if( quincunx_sampling_flag == 0 && h->param.i_frame_packing != 5 )
     {
         bs_write( &q, 4, 0 );                     // frame0_grid_position_x
         bs_write( &q, 4, 0 );                     // frame0_grid_position_y
@@ -783,23 +783,26 @@ int x264_sei_avcintra_vanc_write( x264_t *h, bs_t *s, int len )
 
 const x264_level_t x264_levels[] =
 {
-    { 10,    1485,    99,    396,     64,    175,  64, 64,  0, 2, 0, 0, 1 },
-    {  9,    1485,    99,    396,    128,    350,  64, 64,  0, 2, 0, 0, 1 }, /* "1b" */
-    { 11,    3000,   396,    900,    192,    500, 128, 64,  0, 2, 0, 0, 1 },
-    { 12,    6000,   396,   2376,    384,   1000, 128, 64,  0, 2, 0, 0, 1 },
-    { 13,   11880,   396,   2376,    768,   2000, 128, 64,  0, 2, 0, 0, 1 },
-    { 20,   11880,   396,   2376,   2000,   2000, 128, 64,  0, 2, 0, 0, 1 },
-    { 21,   19800,   792,   4752,   4000,   4000, 256, 64,  0, 2, 0, 0, 0 },
-    { 22,   20250,  1620,   8100,   4000,   4000, 256, 64,  0, 2, 0, 0, 0 },
-    { 30,   40500,  1620,   8100,  10000,  10000, 256, 32, 22, 2, 0, 1, 0 },
-    { 31,  108000,  3600,  18000,  14000,  14000, 512, 16, 60, 4, 1, 1, 0 },
-    { 32,  216000,  5120,  20480,  20000,  20000, 512, 16, 60, 4, 1, 1, 0 },
-    { 40,  245760,  8192,  32768,  20000,  25000, 512, 16, 60, 4, 1, 1, 0 },
-    { 41,  245760,  8192,  32768,  50000,  62500, 512, 16, 24, 2, 1, 1, 0 },
-    { 42,  522240,  8704,  34816,  50000,  62500, 512, 16, 24, 2, 1, 1, 1 },
-    { 50,  589824, 22080, 110400, 135000, 135000, 512, 16, 24, 2, 1, 1, 1 },
-    { 51,  983040, 36864, 184320, 240000, 240000, 512, 16, 24, 2, 1, 1, 1 },
-    { 52, 2073600, 36864, 184320, 240000, 240000, 512, 16, 24, 2, 1, 1, 1 },
+    { 10,     1485,     99,    396,     64,    175,   64, 64,  0, 2, 0, 0, 1 },
+    {  9,     1485,     99,    396,    128,    350,   64, 64,  0, 2, 0, 0, 1 }, /* "1b" */
+    { 11,     3000,    396,    900,    192,    500,  128, 64,  0, 2, 0, 0, 1 },
+    { 12,     6000,    396,   2376,    384,   1000,  128, 64,  0, 2, 0, 0, 1 },
+    { 13,    11880,    396,   2376,    768,   2000,  128, 64,  0, 2, 0, 0, 1 },
+    { 20,    11880,    396,   2376,   2000,   2000,  128, 64,  0, 2, 0, 0, 1 },
+    { 21,    19800,    792,   4752,   4000,   4000,  256, 64,  0, 2, 0, 0, 0 },
+    { 22,    20250,   1620,   8100,   4000,   4000,  256, 64,  0, 2, 0, 0, 0 },
+    { 30,    40500,   1620,   8100,  10000,  10000,  256, 32, 22, 2, 0, 1, 0 },
+    { 31,   108000,   3600,  18000,  14000,  14000,  512, 16, 60, 4, 1, 1, 0 },
+    { 32,   216000,   5120,  20480,  20000,  20000,  512, 16, 60, 4, 1, 1, 0 },
+    { 40,   245760,   8192,  32768,  20000,  25000,  512, 16, 60, 4, 1, 1, 0 },
+    { 41,   245760,   8192,  32768,  50000,  62500,  512, 16, 24, 2, 1, 1, 0 },
+    { 42,   522240,   8704,  34816,  50000,  62500,  512, 16, 24, 2, 1, 1, 1 },
+    { 50,   589824,  22080, 110400, 135000, 135000,  512, 16, 24, 2, 1, 1, 1 },
+    { 51,   983040,  36864, 184320, 240000, 240000,  512, 16, 24, 2, 1, 1, 1 },
+    { 52,  2073600,  36864, 184320, 240000, 240000,  512, 16, 24, 2, 1, 1, 1 },
+    { 60,  4177920, 139264, 696320, 240000, 240000, 8192, 16, 24, 2, 1, 1, 1 },
+    { 61,  8355840, 139264, 696320, 480000, 480000, 8192, 16, 24, 2, 1, 1, 1 },
+    { 62, 16711680, 139264, 696320, 800000, 800000, 8192, 16, 24, 2, 1, 1, 1 },
     { 0 }
 };
 
